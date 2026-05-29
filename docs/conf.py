@@ -4,7 +4,7 @@ from importlib import metadata
 
 sys.path.insert(0, os.path.abspath(".."))
 
-project = "jtmlquill"
+project = "htmlquill"
 copyright = "2026, htmlquill Contributors"
 author = "htmlquill Contributors"
 
@@ -12,7 +12,7 @@ try:
     release = metadata.version("htmlquill")
 except metadata.PackageNotFoundError:
     try:
-        from taskledger._version import __version__ as release
+        from htmlquill._version import __version__ as release
     except ImportError:
         release = "0.1.0"
 

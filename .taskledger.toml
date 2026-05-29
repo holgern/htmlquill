@@ -7,9 +7,9 @@ project_uuid = "1acabedd-ddbc-4f35-9ba8-ea4390758b15"
 project_name = "htmlquill"
 
 # Taskledger branch-scoped state. This block is intentionally safe to commit.
-ledger_ref = 'main'
-ledger_parent_ref = ''
-ledger_next_task_number = 1
+ledger_ref = "main"
+ledger_parent_ref = ""
+ledger_next_task_number = 2
 ledger_branch_guard = "off"
 
 # Project-local taskledger overrides.

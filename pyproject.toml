@@ -7,7 +7,7 @@ where = ["."]
 include = ["htmlquill*"]
 
 [tool.setuptools.package-data]
-taskledger = [
+htmlquill = [
     "py.typed",
 ]
 
@@ -25,6 +25,8 @@ readme = "README.md"
 license = "MIT"
 keywords = ["cli", "markdown", "html", "developer-tools"]
 dependencies = [
+    "beautifulsoup4>=4.12",
+    "requests>=2.31",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
