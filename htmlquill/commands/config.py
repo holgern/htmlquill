@@ -26,8 +26,8 @@ fail_on_challenge = true
 fallback_on_challenge = true
 
 [paths]
-auth_file = \"~/.config/htmlquill/auth.json\"
-
+auth_file = "~/.config/htmlquill/auth.json"
+auth_vault_file = "~/.config/htmlquill/auth.vault"
 [challenge]
 markers = [
   \"Performing security verification\",
@@ -48,11 +48,11 @@ browser = \"chromium\"
 timeout = 60.0
 auth = \"medium\"
 
-# [sites.\"reddit.com\"]
-# adapter = \"reddit_api\"
-# auth = \"reddit\"
-# timeout = 30.0
-# user_agent = \"linux:htmlquill:v0.2.0 (by /u/YOUR_REDDIT_USERNAME)\"
+[sites."reddit.com"]
+adapter = "reddit_api"
+auth = "reddit"
+timeout = 30.0
+user_agent = "linux:htmlquill:v0.3.0 (by /u/YOUR_REDDIT_USERNAME)"
 """
 
 

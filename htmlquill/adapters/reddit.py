@@ -65,16 +65,26 @@ def fetch_reddit_thread_json(
     if ref is None:
         raise FetchError(f"not a supported Reddit comments URL: {url!r}")
 
-    if not auth.token_env:
+    token: str
+    if auth.bearer_token:
+        token = auth.bearer_token.strip()
+    elif auth.token_env:
+        token = os.environ.get(auth.token_env, "").strip()
+    else:
         raise FetchError(
-            "Reddit API adapter requires an auth profile with token_env "
-            "(for example token_env='REDDIT_BEARER_TOKEN')."
+            "Reddit API adapter requires a bearer token. "
+            "Run `htmlquill auth login reddit` or configure an auth profile "
+            "with token_env."
+        )
+        raise FetchError(
+            "Reddit API adapter requires a bearer token. "
+            "Run `htmlquill auth login reddit` or configure an auth profile "
+            "with token_env."
         )
 
-    token = os.environ.get(auth.token_env, "").strip()
     if not token:
         raise FetchError(
-            f"environment variable {auth.token_env} is not set or is empty"
+            "Reddit API bearer token is empty"
         )
 
     user_agent = options.headers.get("User-Agent", "").strip()

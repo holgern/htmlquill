@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 from htmlquill.auth import (
@@ -24,6 +25,7 @@ from htmlquill.config import (
     ResolvedOptions,
     config_enabled_for_run,
     load_config,
+    resolve_auth_vault_file_from_config,
     resolve_options,
 )
 from htmlquill.fetch import FetchError, fetch_html
@@ -36,6 +38,7 @@ class ResolvedFetchContext:
     auth: ResolvedAuth
     config_path: Path | None
     auth_path: Path | None
+    auth_vault_path: Path | None = None
 
 
 def html_to_markdown(
@@ -101,6 +104,91 @@ def _auth_store_from_input(
     return load_auth(auth_path), auth_path
 
 
+def _resolve_auth_vault_for_profile(
+    *,
+    config_obj: HtmlQuillConfig,
+    profile_name: str,
+) -> tuple[ResolvedAuth, Path | None]:
+    """Try to load the encrypted vault and resolve a bearer token from it.
+
+    Returns (updated_resolved_auth, vault_path_or_None).
+    If the vault is not available or does not contain the profile, returns
+    ResolvedAuth with no vault changes.
+    """
+    config_dir = (
+        config_obj.source_path.parent
+        if config_obj.source_path is not None
+        else None
+    )
+    vault_path = resolve_auth_vault_file_from_config(
+        config_obj, config_dir=config_dir
+    )
+    if vault_path is None:
+        vault_path = Path("~/.config/htmlquill/auth.vault").expanduser()
+    if not vault_path.exists():
+        return ResolvedAuth(profile_name=profile_name, token_source=None), vault_path
+
+    try:
+        from htmlquill.reddit_oauth import resolve_reddit_bearer_token
+        from htmlquill.vault import load_auth_vault
+    except ImportError:
+        # vaultconfig not available
+        return ResolvedAuth(profile_name=profile_name, token_source=None), vault_path
+
+    try:
+        vault = load_auth_vault(vault_path, prompt=True)
+    except Exception:
+        # Vault unavailable (wrong password, missing vaultconfig, etc.)
+        return ResolvedAuth(profile_name=profile_name, token_source=None), vault_path
+
+    if profile_name not in vault.profiles:
+        return ResolvedAuth(profile_name=profile_name, token_source=None), vault_path
+
+    profile = vault.profiles[profile_name]
+    if profile.kind != "reddit_oauth":
+        return ResolvedAuth(profile_name=profile_name, token_source=None), vault_path
+
+    user_agent = "linux:htmlquill:v0.3.0"
+    try:
+        access_token, updated_data = resolve_reddit_bearer_token(
+            profile.data,
+            user_agent=user_agent,
+            timeout=30.0,
+        )
+    except FetchError:
+        # Token refresh failed
+        return ResolvedAuth(profile_name=profile_name, token_source=None), vault_path
+
+    # If the vault was updated (token refreshed), persist it.
+    if updated_data is not None:
+        try:
+            from htmlquill.vault import get_vault_password, save_auth_vault
+            # Use the same password we just used to decrypt.
+            # We re-prompt since we don't cache passwords.
+            password = get_vault_password("HtmlQuill vault password: ")
+            vault_payload: dict[str, Any] = {
+                "version": vault.version,
+                "profiles": {},
+            }
+            for name, p in vault.profiles.items():
+                if name == profile_name:
+                    vault_payload["profiles"][name] = updated_data
+                else:
+                    vault_payload["profiles"][name] = {
+                        "kind": p.kind,
+                        **p.data,
+                    }
+            save_auth_vault(vault_path, vault_payload, password=password)
+        except Exception:
+            pass  # Non-fatal: token is still in memory for this run.
+
+    return ResolvedAuth(
+        profile_name=profile_name,
+        bearer_token=access_token,
+        token_source="vault",
+    ), vault_path
+
+
 def resolve_url_context(
     url: str,
     *,
@@ -135,11 +223,28 @@ def resolve_url_context(
     )
     resolved_auth = resolve_auth(auth_store, profile_name=resolved.auth_profile)
 
+    # If legacy auth didn't provide a bearer token and we have a requested
+    # profile, try the encrypted vault.
+    auth_vault_path: Path | None = None
+    if (
+        auth is not False
+        and resolved.auth_profile
+        and not resolved_auth.bearer_token
+        and not resolved_auth.token_env
+    ):
+        vault_auth, auth_vault_path = _resolve_auth_vault_for_profile(
+            config_obj=config_obj,
+            profile_name=resolved.auth_profile,
+        )
+        if vault_auth.bearer_token:
+            resolved_auth = vault_auth
+
     return ResolvedFetchContext(
         options=resolved,
         auth=resolved_auth,
         config_path=config_obj.source_path,
         auth_path=auth_path,
+        auth_vault_path=auth_vault_path,
     )
 
 
@@ -159,6 +264,9 @@ def resolved_context_to_dict(
         if context.config_path is not None
         else None,
         "auth_path": str(context.auth_path) if context.auth_path is not None else None,
+        "auth_vault_path": str(context.auth_vault_path)
+        if context.auth_vault_path is not None
+        else None,
         "browser": context.options.browser,
         "adapter": context.options.adapter,
         "timeout": context.options.timeout,
@@ -205,6 +313,8 @@ def url_to_markdown(
 
         reddit_ref = parse_reddit_url(url)
         if reddit_ref is not None:
+            # If the token came from the vault and needs refresh, it was
+            # already refreshed in resolve_url_context. Pass through.
             payload = fetch_reddit_thread_json(
                 url,
                 options=context.options,

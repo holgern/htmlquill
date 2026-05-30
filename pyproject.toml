@@ -66,12 +66,16 @@ dev = [
     "ruff",
     "twine",
     "types-PyYAML",
+    "vaultconfig>=0.1.0",
 ]
 rich = [
     "rich",
 ]
 browser = [
     "playwright>=1.40",
+]
+secure = [
+    "vaultconfig>=0.1.0",
 ]
 
 [tool.setuptools_scm]

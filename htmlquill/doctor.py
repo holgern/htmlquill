@@ -7,6 +7,7 @@ import os
 import platform
 import sys
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 from htmlquill.adapters.reddit import fetch_reddit_thread_json, parse_reddit_url
 from htmlquill.auth import load_auth, resolve_auth_path
@@ -37,7 +38,7 @@ def _import_exists(module: str) -> bool:
         return False
 
 
-def run_doctor(
+def run_doctor(  # noqa: C901
     *,
     config_path: str | None = None,
     auth_file: str | None = None,
@@ -145,6 +146,117 @@ def run_doctor(
         )
     )
 
+    # --- Secure auth vault checks ---
+
+    vaultconfig_available = _import_exists("vaultconfig.crypt")
+    checks.append(
+        DoctorCheck(
+            "secure_auth_dependency",
+            "ok" if vaultconfig_available else "warn",
+            "vaultconfig available"
+            if vaultconfig_available
+            else (
+                "secure auth requires VaultConfig; "
+                'install with: pip install "htmlquill[secure]"'
+            ),
+        )
+    )
+
+    vault_path: Path | None = None
+    config_dir_vault = cfg.source_path.parent if cfg.source_path is not None else None
+    if cfg.auth_vault_file:
+        from htmlquill.config import _maybe_expand_path
+        vault_path = _maybe_expand_path(cfg.auth_vault_file, base_dir=config_dir_vault)
+    else:
+        from htmlquill.vault import default_auth_vault_path
+        vault_path = default_auth_vault_path(config_dir_vault)
+
+    if vault_path and vault_path.exists():
+        checks.append(
+            DoctorCheck(
+                "secure_auth_vault_exists",
+                "ok",
+                str(vault_path),
+            )
+        )
+
+        # Check permissions
+        if os.name != "nt":
+            import stat
+            try:
+                mode = stat.S_IMODE(vault_path.stat().st_mode)
+                if mode & 0o077:
+                    checks.append(
+                        DoctorCheck(
+                            "secure_auth_permissions",
+                            "warn",
+                            f"auth vault {vault_path} is group/world accessible "
+                            f"(mode {oct(mode)}); recommended mode is 0o600",
+                        )
+                    )
+                else:
+                    checks.append(
+                        DoctorCheck(
+                            "secure_auth_permissions",
+                            "ok",
+                            "auth vault file permissions are 0600",
+                        )
+                    )
+            except OSError as exc:
+                checks.append(
+                    DoctorCheck(
+                        "secure_auth_permissions",
+                        "error",
+                        str(exc),
+                    )
+                )
+
+        # Check encryption
+        if vaultconfig_available:
+            try:
+                raw_bytes = vault_path.read_bytes()
+                from vaultconfig import crypt  # type: ignore[import-not-found]
+                if crypt.is_encrypted(raw_bytes):
+                    checks.append(
+                        DoctorCheck(
+                            "secure_auth_vault_encrypted",
+                            "ok",
+                            "auth vault appears encrypted",
+                        )
+                    )
+                else:
+                    checks.append(
+                        DoctorCheck(
+                            "secure_auth_vault_encrypted",
+                            "error",
+                            "auth vault does not appear to be VaultConfig-encrypted",
+                        )
+                    )
+            except Exception as exc:
+                checks.append(
+                    DoctorCheck(
+                        "secure_auth_vault_encrypted",
+                        "error",
+                        str(exc),
+                    )
+                )
+        else:
+            checks.append(
+                DoctorCheck(
+                    "secure_auth_vault_encrypted",
+                    "info",
+                    "vaultconfig not available; cannot check encryption status",
+                )
+            )
+    else:
+        checks.append(
+            DoctorCheck(
+                "secure_auth_vault_exists",
+                "info" if not profile else "warn",
+                f"{vault_path} {'not found' if vault_path else 'not configured'}",
+            )
+        )
+
     if url:
         headers = {"User-Agent": user_agent} if user_agent else None
         config_input: bool | str = config_path or True
@@ -199,24 +311,36 @@ def run_doctor(
                                 "Reddit API adapter requires an auth profile",
                             )
                         )
-                    if not context.auth.token_env:
+                    # Check if we have a bearer token from vault or env
+
+                    if context.auth.token_source == "vault":
                         checks.append(
                             DoctorCheck(
-                                "reddit:token_env",
-                                "error",
-                                "Reddit API adapter requires auth profile token_env",
+                                "reddit:token",
+                                "ok",
+                                "bearer token loaded from encrypted vault",
                             )
                         )
-                    else:
-                        token_present = bool(
+                    elif context.auth.token_env:
+                        token_present_env = bool(
                             os.environ.get(context.auth.token_env, "").strip()
                         )
                         checks.append(
                             DoctorCheck(
                                 "reddit:token",
-                                "ok" if token_present else "error",
+                                "ok" if token_present_env else "error",
                                 f"env {context.auth.token_env} "
-                                f"{'is set' if token_present else 'is missing'}",
+                                f"{'is set' if token_present_env else 'is missing'}",
+                            )
+                        )
+                    else:
+                        checks.append(
+                            DoctorCheck(
+                                "reddit:token",
+                                "error",
+                                "no bearer token available "
+                                "(set REDDIT_BEARER_TOKEN or "
+                                "run htmlquill auth login reddit)"
                             )
                         )
                     user_agent_value = context.options.headers.get("User-Agent", "")
