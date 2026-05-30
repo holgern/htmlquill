@@ -15,6 +15,7 @@ from htmlquill.core import (
     resolved_context_to_dict,
     url_to_markdown,
 )
+from htmlquill.filenames import markdown_filename, unique_generated_path
 from htmlquill.urls import is_url
 
 
@@ -30,6 +31,11 @@ def convert_command(
     no_auth: bool,
     profile: str | None,
     print_config: bool,
+    stdout: bool,
+    filename_only: bool,
+    filename_max_length: int,
+    output_dir: str | None,
+    force: bool,
 ) -> None:
     if source == "-":
         if print_config:
@@ -72,7 +78,44 @@ def convert_command(
             base_url=path.resolve().as_uri(),
         )
 
-    if output:
-        Path(output).write_text(markdown, encoding="utf-8")
-    else:
+    if filename_max_length < 8:
+        raise typer.BadParameter(
+            "--filename-max-length must be at least 8"
+        )
+
+    if stdout and filename_only:
+        raise typer.BadParameter(
+            "--stdout and --filename-only cannot be used together"
+        )
+    if stdout and output:
+        raise typer.BadParameter(
+            "--stdout and --output cannot be used together"
+        )
+    if output and output_dir:
+        raise typer.BadParameter(
+            "--output-dir cannot be used with --output"
+        )
+
+    if stdout:
         typer.echo(markdown, nl=False)
+        return
+
+    if output:
+        target = Path(output)
+    else:
+        base_dir = Path(output_dir) if output_dir else Path.cwd()
+        target = base_dir / markdown_filename(
+            markdown,
+            source=source,
+            max_length=filename_max_length,
+        )
+        if not force:
+            target = unique_generated_path(target)
+
+    if filename_only:
+        typer.echo(str(target))
+        return
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(markdown, encoding="utf-8")
+    typer.echo(str(target))

@@ -24,11 +24,23 @@ playwright install chromium
 ## CLI usage
 
 ```bash
-# Backward-compatible shorthand
-htmlquill https://example.com -o example.md
+# Auto-save using the first Markdown heading
+htmlquill convert https://example.com/article
 
-# Explicit command
-htmlquill convert https://example.com -o example.md
+# Manual output path
+htmlquill convert https://example.com/article -o article.md
+
+# Preview generated filename without saving
+htmlquill convert https://example.com/article --filename-only
+
+# Print Markdown content without saving
+htmlquill convert https://example.com/article --stdout
+
+# Save generated filename to a target directory
+htmlquill convert https://example.com/article --output-dir notes
+
+# Limit generated filename stem length
+htmlquill convert https://example.com/article --filename-max-length 60
 
 # Inspect effective config
 htmlquill config show https://example.com
@@ -54,7 +66,7 @@ htmlquill analyse example.md
 htmlquill preview example.md
 ```
 
-`htmlquill SOURCE` is retained as shorthand for `htmlquill convert SOURCE`.
+`htmlquill SOURCE` is retained as shorthand for `htmlquill convert SOURCE`; it now follows the same auto-save behavior unless `--stdout` is used.
 
 ### Command overview
 
@@ -68,20 +80,24 @@ htmlquill preview example.md
 
 ### Convert options
 
-| Option             | Description                                                          |
-| ------------------ | -------------------------------------------------------------------- |
-| `SOURCE`           | URL (`https://...`), HTML file path, or `-` for stdin                |
-| `-o`, `--output`   | Output file path (default: stdout)                                   |
-| `--timeout`        | HTTP timeout override in seconds                                     |
-| `--user-agent`     | Custom HTTP User-Agent header                                        |
-| `--browser`        | Fetching mode override: `auto`, `requests`, `playwright`, `chromium` |
-| `--config PATH`    | Use this config file                                                 |
-| `--no-config`      | Disable config loading                                               |
-| `--auth-file PATH` | Use this auth file                                                   |
-| `--no-auth`        | Disable auth loading                                                 |
-| `--profile NAME`   | Force a named auth profile                                           |
-| `--print-config`   | Deprecated; use `htmlquill config show URL`                          |
-
+| Option                     | Description                                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------------ |
+| `SOURCE`                   | URL (`https://...`), HTML file path, or `-` for stdin                                     |
+| `-o`, `--output PATH`      | Manual output file path. Overrides generated filename.                                     |
+| `--stdout`                 | Print converted Markdown to stdout and do not save.                                        |
+| `--filename-only`          | Print resolved output filename and do not save.                                            |
+| `--filename-max-length N`  | Max generated filename stem length, excluding `.md`. Default: `80`.                        |
+| `--output-dir DIR`         | Directory for generated output files. Default: current directory.                          |
+| `--force`                  | Overwrite generated output target instead of adding a numeric suffix.                      |
+| `--timeout`                | HTTP timeout override in seconds                                                           |
+| `--user-agent`             | Custom HTTP User-Agent header                                                              |
+| `--browser`                | Fetching mode override: `auto`, `requests`, `playwright`, `chromium`                       |
+| `--config PATH`            | Use this config file                                                                       |
+| `--no-config`              | Disable config loading                                                                     |
+| `--auth-file PATH`         | Use this auth file                                                                         |
+| `--no-auth`                | Disable auth loading                                                                       |
+| `--profile NAME`           | Force a named auth profile                                                                 |
+| `--print-config`           | Deprecated; use `htmlquill config show URL`                                                |
 ### Browser mode details
 
 - **`auto`** (default): tries `requests` first; on HTTP 403 or detected challenge page, falls back to system Chromium, then Playwright.

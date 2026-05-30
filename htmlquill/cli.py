@@ -62,6 +62,31 @@ def convert(
         "--print-config",
         help="Deprecated; use `htmlquill config show URL`.",
     ),
+    stdout_opt: bool = typer.Option(
+        False,
+        "--stdout",
+        help="Print converted Markdown to stdout and do not save.",
+    ),
+    filename_only: bool = typer.Option(
+        False,
+        "--filename-only",
+        help="Print the resolved output filename and do not save.",
+    ),
+    filename_max_length: int = typer.Option(
+        80,
+        "--filename-max-length",
+        help="Maximum generated filename stem length, excluding .md.",
+    ),
+    output_dir: str | None = typer.Option(
+        None,
+        "--output-dir",
+        help="Directory for generated filenames. Ignored when --output is used.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite generated output file instead of adding a numeric suffix.",
+    ),
 ) -> None:
     convert_command(
         source,
@@ -75,6 +100,11 @@ def convert(
         no_auth,
         profile,
         print_config,
+        stdout_opt,
+        filename_only,
+        filename_max_length,
+        output_dir,
+        force,
     )
 
 

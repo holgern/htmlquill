@@ -16,24 +16,29 @@ runner = CliRunner()
 
 
 class TestCLIConvertCompatibility:
-    def test_html_file_to_stdout(self, tmp_path: Path, capsys: object) -> None:
+    def test_html_file_auto_filename_from_heading(
+        self, tmp_path: Path, monkeypatch: object
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
         html_file = tmp_path / "test.html"
         html_file.write_text(
             "<html><body><main><h1>Hello</h1><p>World</p></main></body></html>",
             encoding="utf-8",
         )
+
         rc = main([str(html_file)])
+
         assert rc == 0
-        captured = capsys.readouterr()
-        assert "# Hello" in captured.out
-        assert "World" in captured.out
+        output = tmp_path / "hello.md"
+        assert output.exists()
+        assert "# Hello" in output.read_text(encoding="utf-8")
 
     def test_stdin_to_stdout(self, capsys: object) -> None:
         import sys
 
         html = "<main><p>Stdin test</p></main>"
         with patch.object(sys, "stdin", StringIO(html)):
-            rc = main(["-"])
+            rc = main(["-", "--stdout"])
         assert rc == 0
         captured = capsys.readouterr()
         assert "Stdin test" in captured.out
@@ -55,7 +60,6 @@ class TestCLIConvertCompatibility:
         mock_url.assert_called_once()
 
     def test_url_with_timeout(self, tmp_path: Path) -> None:
-        output_file = tmp_path / "test.md"
         with patch("htmlquill.commands.convert.url_to_markdown") as mock_url:
             mock_url.return_value = "Content\n"
             rc = main(
@@ -63,15 +67,13 @@ class TestCLIConvertCompatibility:
                     "https://example.com",
                     "--timeout",
                     "5",
-                    "-o",
-                    str(output_file),
+                    "--stdout",
                 ]
             )
         assert rc == 0
         assert mock_url.call_args[1]["timeout"] == 5.0
 
     def test_url_with_user_agent(self, tmp_path: Path) -> None:
-        output_file = tmp_path / "test.md"
         with patch("htmlquill.commands.convert.url_to_markdown") as mock_url:
             mock_url.return_value = "Content\n"
             rc = main(
@@ -79,15 +81,13 @@ class TestCLIConvertCompatibility:
                     "https://example.com",
                     "--user-agent",
                     "TestAgent/1.0",
-                    "-o",
-                    str(output_file),
+                    "--stdout",
                 ]
             )
         assert rc == 0
         assert mock_url.call_args[1]["headers"] == {"User-Agent": "TestAgent/1.0"}
 
     def test_url_with_chromium_browser(self, tmp_path: Path) -> None:
-        output_file = tmp_path / "test.md"
         with patch("htmlquill.commands.convert.url_to_markdown") as mock_url:
             mock_url.return_value = "Content\n"
             rc = main(
@@ -95,8 +95,7 @@ class TestCLIConvertCompatibility:
                     "https://example.com",
                     "--browser",
                     "chromium",
-                    "-o",
-                    str(output_file),
+                    "--stdout",
                 ]
             )
         assert rc == 0
@@ -185,6 +184,107 @@ browser = "chromium"
         assert payload["auth"]["profile"] == "medium"
         assert payload["auth"]["cookies"] == "<redacted>"
         assert payload["auth"]["cookies_count"] == 1
+
+    def test_stdout_prints_without_saving(
+        self, tmp_path: Path, capsys: object, monkeypatch: object
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        html_file = tmp_path / "test.html"
+        html_file.write_text(
+            "<main><h1>Hello</h1><p>World</p></main>", encoding="utf-8"
+        )
+
+        rc = main([str(html_file), "--stdout"])
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "# Hello" in captured.out
+        assert not (tmp_path / "hello.md").exists()
+
+    def test_manual_output_still_writes_exact_path(
+        self, tmp_path: Path,
+    ) -> None:
+        html_file = tmp_path / "test.html"
+        manual = tmp_path / "custom.name"
+        html_file.write_text(
+            "<main><h1>Hello</h1><p>World</p></main>", encoding="utf-8"
+        )
+
+        rc = main([str(html_file), "-o", str(manual)])
+
+        assert rc == 0
+        assert manual.exists()
+
+    def test_filename_only_prints_without_saving(
+        self, tmp_path: Path, capsys: object, monkeypatch: object
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        html_file = tmp_path / "test.html"
+        html_file.write_text(
+            "<main><h1>Hello World</h1></main>", encoding="utf-8"
+        )
+
+        rc = main([str(html_file), "--filename-only"])
+
+        assert rc == 0
+        assert capsys.readouterr().out.strip() == str(tmp_path / "hello-world.md")
+        assert not (tmp_path / "hello-world.md").exists()
+
+    def test_generated_filename_collision_suffix(
+        self, tmp_path: Path, monkeypatch: object
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "hello.md").write_text("old", encoding="utf-8")
+        html_file = tmp_path / "test.html"
+        html_file.write_text(
+            "<main><h1>Hello</h1></main>", encoding="utf-8"
+        )
+
+        rc = main([str(html_file)])
+
+        assert rc == 0
+        assert (tmp_path / "hello-2.md").exists()
+
+    def test_url_auto_filename_uses_fetched_heading(
+        self, tmp_path: Path, monkeypatch: object
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        with patch("htmlquill.commands.convert.url_to_markdown") as mock_url:
+            mock_url.return_value = "# Fetched Title\n\nContent\n"
+            rc = main(["https://example.com/article"])
+
+        assert rc == 0
+        assert (tmp_path / "fetched-title.md").exists()
+
+    def test_output_dir_creates_directory(
+        self, tmp_path: Path, monkeypatch: object
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        html_file = tmp_path / "test.html"
+        html_file.write_text(
+            "<main><h1>Title</h1></main>", encoding="utf-8"
+        )
+
+        rc = main([str(html_file), "--output-dir", str(tmp_path / "notes")])
+
+        assert rc == 0
+        assert (tmp_path / "notes" / "title.md").exists()
+
+    def test_force_overwrites_generated_target(
+        self, tmp_path: Path, monkeypatch: object
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "hello.md").write_text("old", encoding="utf-8")
+        html_file = tmp_path / "test.html"
+        html_file.write_text(
+            "<main><h1>Hello</h1></main>", encoding="utf-8"
+        )
+
+        rc = main([str(html_file), "--force"])
+
+        assert rc == 0
+        content = (tmp_path / "hello.md").read_text(encoding="utf-8")
+        assert "# Hello" in content
 
 
 class TestTyperCommands:
@@ -413,6 +513,38 @@ user_agent = "linux:htmlquill:v0.2.0 (by /u/test)"
         assert "Hello preview" in result.output
 
 
+
+
+class TestMutualExclusion:
+    def test_stdout_and_output_are_mutually_exclusive(
+        self, tmp_path: Path
+    ) -> None:
+        html_file = tmp_path / "test.html"
+        html_file.write_text(
+            "<main><h1>Hello</h1></main>", encoding="utf-8"
+        )
+        rc = main([str(html_file), "--stdout", "-o", str(tmp_path / "x.md")])
+        assert rc != 0
+
+    def test_filename_only_and_stdout_are_mutually_exclusive(
+        self, tmp_path: Path
+    ) -> None:
+        html_file = tmp_path / "test.html"
+        html_file.write_text(
+            "<main><h1>Hello</h1></main>", encoding="utf-8"
+        )
+        rc = main([str(html_file), "--stdout", "--filename-only"])
+        assert rc != 0
+
+    def test_output_dir_and_output_are_mutually_exclusive(
+        self, tmp_path: Path
+    ) -> None:
+        html_file = tmp_path / "test.html"
+        html_file.write_text(
+            "<main><h1>Hello</h1></main>", encoding="utf-8"
+        )
+        rc = main([str(html_file), "--output-dir", "dir", "-o", "x.md"])
+        assert rc != 0
 class TestCLIError:
     def test_nonexistent_file(self) -> None:
         rc = main(["/nonexistent/path.html"])
