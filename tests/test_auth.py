@@ -29,8 +29,7 @@ def _write_auth(path: Path) -> None:
           "secure": true,
           "httpOnly": true
         }
-      ],
-      "token_env": "HTMLQUILL_REMOTE_BROWSER_TOKEN"
+      ]
     }
   }
 }
@@ -120,11 +119,8 @@ def test_auth_redaction_hides_cookie_values(
 
     store = load_auth(auth_file)
     resolved = resolve_auth(store, profile_name="medium")
-    monkeypatch.setenv("HTMLQUILL_REMOTE_BROWSER_TOKEN", "super-secret-token")
     redacted = redacted_auth_dict(resolved)
 
     assert redacted["cookies"] == "<redacted>"
     assert redacted["cookies_count"] == 1
-    assert redacted["token_present"] is True
     assert "very-secret" not in str(redacted)
-    assert "super-secret-token" not in str(redacted)

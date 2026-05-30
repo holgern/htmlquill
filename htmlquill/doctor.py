@@ -9,7 +9,6 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from htmlquill.adapters.reddit import fetch_reddit_thread_json, parse_reddit_url
 from htmlquill.auth import load_auth, resolve_auth_path
 from htmlquill.config import (
     BrowserMode,
@@ -18,7 +17,7 @@ from htmlquill.config import (
     resolve_config_path,
 )
 from htmlquill.core import resolve_url_context
-from htmlquill.fetch import DEFAULT_USER_AGENT, FetchError, _find_chromium, fetch_html
+from htmlquill.fetch import FetchError, _find_chromium, fetch_html
 
 
 @dataclass(frozen=True)
@@ -149,18 +148,6 @@ def run_doctor(  # noqa: C901
     # --- Secure auth vault checks ---
 
     vaultconfig_available = _import_exists("vaultconfig.crypt")
-    checks.append(
-        DoctorCheck(
-            "secure_auth_dependency",
-            "ok" if vaultconfig_available else "warn",
-            "vaultconfig available"
-            if vaultconfig_available
-            else (
-                "secure auth requires VaultConfig; "
-                'install with: pip install "htmlquill[secure]"'
-            ),
-        )
-    )
 
     vault_path: Path | None = None
     config_dir_vault = cfg.source_path.parent if cfg.source_path is not None else None
@@ -173,7 +160,33 @@ def run_doctor(  # noqa: C901
 
         vault_path = default_auth_vault_path(config_dir_vault)
 
-    if vault_path and vault_path.exists():
+    # Only report on vaultconfig availability if a vault is in use.
+    vault_in_use = vault_path and vault_path.exists()
+    if vault_in_use:
+        checks.append(
+            DoctorCheck(
+                "secure_auth_dependency",
+                "ok" if vaultconfig_available else "warn",
+                "vaultconfig available"
+                if vaultconfig_available
+                else (
+                    "secure auth requires VaultConfig; "
+                    'install with: pip install "htmlquill[secure]"'
+                ),
+            )
+        )
+    else:
+        checks.append(
+            DoctorCheck(
+                "secure_auth_dependency",
+                "info" if not vaultconfig_available else "ok",
+                "vaultconfig available"
+                if vaultconfig_available
+                else "secure auth (optional) requires VaultConfig",
+            )
+        )
+
+    if vault_in_use:
         checks.append(
             DoctorCheck(
                 "secure_auth_vault_exists",
@@ -287,108 +300,24 @@ def run_doctor(  # noqa: C901
                     ),
                 )
             )
-            reddit_ref = parse_reddit_url(url)
-            if reddit_ref is not None:
-                checks.append(
-                    DoctorCheck(
-                        "reddit:adapter",
-                        "info",
-                        f"adapter={context.options.adapter}",
-                    )
-                )
-                if context.options.adapter == "html":
-                    checks.append(
-                        DoctorCheck(
-                            "reddit:mode",
-                            "warn",
-                            "reddit.com HTML fetching is unreliable and may be "
-                            "blocked; "
-                            'prefer [sites."reddit.com"].adapter="reddit_api"',
-                        )
-                    )
-                else:
-                    if not context.auth.profile_name:
-                        checks.append(
-                            DoctorCheck(
-                                "reddit:auth_profile",
-                                "error",
-                                "Reddit API adapter requires an auth profile",
-                            )
-                        )
-                    # Check if we have a bearer token from vault or env
-
-                    if context.auth.token_source == "vault":
-                        checks.append(
-                            DoctorCheck(
-                                "reddit:token",
-                                "ok",
-                                "bearer token loaded from encrypted vault",
-                            )
-                        )
-                    elif context.auth.token_env:
-                        token_present_env = bool(
-                            os.environ.get(context.auth.token_env, "").strip()
-                        )
-                        checks.append(
-                            DoctorCheck(
-                                "reddit:token",
-                                "ok" if token_present_env else "error",
-                                f"env {context.auth.token_env} "
-                                f"{'is set' if token_present_env else 'is missing'}",
-                            )
-                        )
-                    else:
-                        checks.append(
-                            DoctorCheck(
-                                "reddit:token",
-                                "error",
-                                "no bearer token available "
-                                "(set REDDIT_BEARER_TOKEN or "
-                                "run htmlquill auth login reddit)",
-                            )
-                        )
-                    user_agent_value = context.options.headers.get("User-Agent", "")
-                    descriptive_user_agent = bool(
-                        user_agent_value and user_agent_value != DEFAULT_USER_AGENT
-                    )
-                    checks.append(
-                        DoctorCheck(
-                            "reddit:user_agent",
-                            "ok" if descriptive_user_agent else "error",
-                            "descriptive User-Agent configured"
-                            if descriptive_user_agent
-                            else 'set [sites."reddit.com"].user_agent to a '
-                            "descriptive value",
-                        )
-                    )
 
             if fetch:
                 try:
-                    if (
-                        context.options.adapter == "reddit_api"
-                        and reddit_ref is not None
-                    ):
-                        fetch_reddit_thread_json(
-                            url,
-                            options=context.options,
-                            auth=context.auth,
-                        )
-                    else:
-                        merged_headers = dict(context.options.headers)
-                        if headers:
-                            merged_headers.update(headers)
-                        fetch_html(
-                            url,
-                            timeout=context.options.timeout,
-                            headers=merged_headers,
-                            browser=context.options.browser,
-                            cookies=context.auth.cookies,
-                            playwright_storage_state=context.auth.playwright_storage_state,
-                            chromium_user_data_dir=context.auth.chromium_user_data_dir,
-                            challenge_markers=list(context.options.challenge_markers),
-                            fallback_on_challenge=context.options.fallback_on_challenge,
-                            fail_on_challenge=context.options.fail_on_challenge,
-                        )
+                    merged_headers = dict(context.options.headers)
+                    if headers:
+                        merged_headers.update(headers)
+                    fetch_html(
+                        url,
+                        timeout=context.options.timeout,
+                        headers=merged_headers,
+                        browser=context.options.browser,
+                        cookies=context.auth.cookies,
+                        playwright_storage_state=context.auth.playwright_storage_state,
+                        chromium_user_data_dir=context.auth.chromium_user_data_dir,
+                        challenge_markers=list(context.options.challenge_markers),
+                        fallback_on_challenge=context.options.fallback_on_challenge,
+                        fail_on_challenge=context.options.fail_on_challenge,
+                    )
                     checks.append(
                         DoctorCheck("fetch", "ok", "fetch smoke test succeeded")
                     )

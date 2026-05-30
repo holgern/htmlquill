@@ -30,7 +30,7 @@ class AuthProfile:
     cookies: tuple[CookieConfig, ...] = ()
     playwright_storage_state: Path | None = None
     chromium_user_data_dir: Path | None = None
-    token_env: str | None = None
+
 
 
 @dataclass(frozen=True)
@@ -46,9 +46,7 @@ class ResolvedAuth:
     cookies: list[dict[str, object]] | None = None
     playwright_storage_state: str | None = None
     chromium_user_data_dir: str | None = None
-    token_env: str | None = None
-    bearer_token: str | None = field(default=None, repr=False)
-    token_source: str | None = None  # "vault", "env", None
+
 
 
 def _env_flag(name: str) -> bool:
@@ -175,17 +173,12 @@ def _parse_profile(name: str, raw: Any, *, base_dir: Path) -> AuthProfile:
         raw.get("chromium_user_data_dir"), base_dir=base_dir
     )
 
-    token_env = raw.get("token_env")
-    if token_env is not None and not isinstance(token_env, str):
-        raise ValueError(f"profiles.{name}.token_env must be a string")
-
     return AuthProfile(
         name=name,
         kind=kind,
         cookies=cookies,
         playwright_storage_state=playwright_storage_state,
         chromium_user_data_dir=chromium_user_data_dir,
-        token_env=token_env,
     )
 
 
@@ -295,7 +288,6 @@ def resolve_auth(
             if profile.chromium_user_data_dir is not None
             else None
         ),
-        token_env=profile.token_env,
     )
 
 
@@ -303,16 +295,10 @@ def redacted_auth_dict(resolved: ResolvedAuth) -> dict[str, object]:
     """Return a redacted dict suitable for ``--print-config`` output."""
 
     cookies_count = len(resolved.cookies or [])
-    env_has_token = resolved.token_env and os.environ.get(resolved.token_env)
-    token_present = bool(resolved.bearer_token or env_has_token)
     return {
         "profile": resolved.profile_name,
         "cookies": "<redacted>" if cookies_count else None,
         "cookies_count": cookies_count,
         "playwright_storage_state": resolved.playwright_storage_state,
         "chromium_user_data_dir": resolved.chromium_user_data_dir,
-        "token_env": resolved.token_env,
-        "bearer_token": "<redacted>" if resolved.bearer_token else None,
-        "token_source": resolved.token_source,
-        "token_present": token_present,
     }

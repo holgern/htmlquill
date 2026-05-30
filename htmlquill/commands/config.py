@@ -15,44 +15,40 @@ from htmlquill.urls import is_url
 
 app = typer.Typer(help="Inspect and manage htmlquill configuration.")
 
-_CONFIG_TEMPLATE = """version = 1
+_CONFIG_TEMPLATE = """\
+version = 1
 
 [defaults]
 adapter = "html"
-browser = \"auto\"
+browser = "auto"
 timeout = 30.0
-# user_agent = \"Mozilla/5.0 htmlquill/0.1\"
+# user_agent = "Mozilla/5.0 htmlquill/0.1"
 fail_on_challenge = true
 fallback_on_challenge = true
 
 [paths]
 auth_file = "~/.config/htmlquill/auth.json"
-auth_vault_file = "~/.config/htmlquill/auth.vault"
+# auth_vault_file is optional and only needed if you use encrypted generic auth data.
+# auth_vault_file = "~/.config/htmlquill/auth.vault"
+
 [challenge]
 markers = [
-  \"Performing security verification\",
-  \"verifies you are not a bot\",
-  \"You've been blocked by network security\",
-  \"blocked by network security\",
-  \"If you think you've been blocked by mistake, file a ticket\",
-  \"Please try to login with your Reddit account\",
+  "Performing security verification",
+  "verifies you are not a bot",
+  "You've been blocked by network security",
+  "blocked by network security",
+  "If you think you've been blocked by mistake, file a ticket",
 ]
 
-[sites.\"medium.com\"]
-browser = \"chromium\"
+[sites."medium.com"]
+browser = "chromium"
 timeout = 60.0
-auth = \"medium\"
+auth = "medium"
 
-[sites.\"alain-airom.medium.com\"]
-browser = \"chromium\"
+[sites."alain-airom.medium.com"]
+browser = "chromium"
 timeout = 60.0
-auth = \"medium\"
-
-[sites."reddit.com"]
-adapter = "reddit_api"
-auth = "reddit"
-timeout = 30.0
-user_agent = "linux:htmlquill:v0.3.0 (by /u/YOUR_REDDIT_USERNAME)"
+auth = "medium"
 """
 
 

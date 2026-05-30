@@ -35,15 +35,9 @@ def _make_vault_payload() -> dict:
     return {
         "version": 1,
         "profiles": {
-            "reddit": {
-                "kind": "reddit_oauth",
-                "client_id": "test-client-id",
-                "client_secret": None,
-                "access_token": "test-access-token",
-                "refresh_token": "test-refresh-token",
-                "expires_at": 2000000000,
-                "scope": "read",
-                "token_type": "bearer",
+            "example": {
+                "kind": "generic_secret",
+                "api_key": "test-api-key",
                 "created_at": 1760000000,
                 "updated_at": 1760000000,
             }
@@ -66,11 +60,10 @@ class TestSaveLoadAuthVault:
         # Load and verify.
         vault = load_auth_vault(vault_path, password=vault_password, prompt=False)
         assert vault.version == 1
-        assert "reddit" in vault.profiles
-        profile = vault.profiles["reddit"]
-        assert profile.kind == "reddit_oauth"
-        assert profile.data["client_id"] == "test-client-id"
-        assert profile.data["access_token"] == "test-access-token"
+        assert "example" in vault.profiles
+        profile = vault.profiles["example"]
+        assert profile.kind == "generic_secret"
+        assert profile.data["api_key"] == "test-api-key"
 
     def test_file_is_0600_on_posix(self, tmp_path: Path, vault_password: str) -> None:
         if os.name == "nt":
@@ -97,11 +90,9 @@ class TestSaveLoadAuthVault:
 
         vault = load_auth_vault(vault_path, password=vault_password, prompt=False)
         redacted = redacted_vault_dict(vault)
-        # Redacted output must not contain actual token values.
+        # Redacted output must not contain actual secret values.
         redacted_str = json.dumps(redacted)
-        assert "test-access-token" not in redacted_str
-        assert "test-refresh-token" not in redacted_str
-        assert "test-client-id" not in redacted_str
+        assert "test-api-key" not in redacted_str
         # But should contain metadata.
         assert redacted["profile_count"] == 1
 
@@ -109,11 +100,11 @@ class TestSaveLoadAuthVault:
         vault_path = tmp_path / "auth.vault"
         save_auth_vault(vault_path, _make_vault_payload(), password=vault_password)
         vault = load_auth_vault(vault_path, password=vault_password, prompt=False)
-        redacted = redacted_profile_dict(vault.profiles["reddit"])
-        assert redacted["name"] == "reddit"
-        assert redacted["kind"] == "reddit_oauth"
+        redacted = redacted_profile_dict(vault.profiles["example"])
+        assert redacted["name"] == "example"
+        assert redacted["kind"] == "generic_secret"
         assert "fields" in redacted
-        assert "client_id" in redacted["fields"]
+        assert "api_key" in redacted["fields"]
 
     def test_load_with_interactive_prompt(
         self, tmp_path: Path, vault_password: str, monkeypatch: pytest.MonkeyPatch
@@ -221,10 +212,10 @@ class TestVaultProfileDataclass:
     def test_repr_excludes_data(self) -> None:
         profile = VaultProfile(
             name="test",
-            kind="reddit_oauth",
-            data={"access_token": "secret-token"},
+            kind="generic_secret",
+            data={"api_key": "secret-token"},
         )
         repr_str = repr(profile)
         assert "secret-token" not in repr_str
         assert "test" in repr_str
-        assert "reddit_oauth" in repr_str
+        assert "generic_secret" in repr_str

@@ -1,4 +1,4 @@
-# htmlquill
+# HtmlQuill
 
 Convert HTML or a URL to Markdown.
 
@@ -8,17 +8,17 @@ Convert HTML or a URL to Markdown.
 pip install htmlquill
 ```
 
-Encrypted auth vault support, used by `htmlquill auth login reddit`, requires the secure extra:
-
-```bash
-pip install "htmlquill[secure]"
-```
-
 Optional Playwright backend:
 
 ```bash
 pip install "htmlquill[browser]"
 playwright install chromium
+```
+
+Encrypted auth vault support for generic secret storage:
+
+```bash
+pip install "htmlquill[secure]"
 ```
 
 ## CLI usage
@@ -50,14 +50,11 @@ htmlquill config init
 htmlquill config path
 htmlquill auth vault path
 
-# Login to Reddit and store OAuth tokens in the encrypted vault
-htmlquill auth login reddit --client-id YOUR_REDDIT_CLIENT_ID
-
 # Inspect redacted vault metadata
-htmlquill auth vault show --profile reddit
+htmlquill auth vault show
 
-# Diagnose Reddit API conversion setup
-htmlquill doctor --url "https://www.reddit.com/r/SUB/comments/POST_ID/title/" --profile reddit
+# Run diagnostics
+htmlquill doctor
 
 # Count generated Markdown structure
 htmlquill analyse example.md
@@ -72,7 +69,7 @@ htmlquill preview example.md
 
 - `htmlquill convert SOURCE [options]`
 - `htmlquill config path|show|init|validate`
-- `htmlquill auth path|show|init|login|logout`
+- `htmlquill auth path|show|init`
 - `htmlquill auth vault path|show`
 - `htmlquill doctor [--url URL] [--fetch] [--json] [--strict]`
 - `htmlquill analyse SOURCE` (alias: `htmlquill analyze SOURCE`)
@@ -124,14 +121,11 @@ version = 1
 adapter = "html"
 browser = "auto"
 timeout = 30.0
-# Set this if you want OAuth token exchange to use the same descriptive UA.
-# user_agent = "linux:htmlquill:v0.3.0 (by /u/YOUR_REDDIT_USERNAME)"
 fail_on_challenge = true
 fallback_on_challenge = true
 
 [paths]
 auth_file = "~/.config/htmlquill/auth.json"
-auth_vault_file = "~/.config/htmlquill/auth.vault"
 
 [challenge]
 markers = [
@@ -140,33 +134,24 @@ markers = [
   "You've been blocked by network security",
   "blocked by network security",
   "If you think you've been blocked by mistake, file a ticket",
-  "Please try to login with your Reddit account",
 ]
 
 [sites."medium.com"]
 browser = "chromium"
 timeout = 60.0
 auth = "medium"
-
-[sites."reddit.com"]
-adapter = "reddit_api"
-auth = "reddit"
-timeout = 30.0
-user_agent = "linux:htmlquill:v0.3.0 (by /u/YOUR_REDDIT_USERNAME)"
 ```
-
-For Reddit, `auth = "reddit"` binds matching Reddit URLs to the vault profile created by `htmlquill auth login reddit`. The `reddit_api` adapter avoids Reddit's regular HTML pages and uses `oauth.reddit.com`, which is much less likely to return the network-security interstitial HTML that normal scraping receives.
 
 ## Authentication
 
 HtmlQuill supports two auth backends:
 
-1. **Encrypted auth vault** (`auth.vault`) for OAuth tokens. This is the recommended backend for Reddit login.
-2. **Legacy JSON auth file** (`auth.json`) for environment-token and browser-state profiles.
+1. **Encrypted auth vault** (`auth.vault`) for encrypted generic secret storage.
+2. **JSON auth file** (`auth.json`) for browser-state profiles.
 
 ### Encrypted auth vault
 
-The encrypted vault is used by `htmlquill auth login reddit`. It stores OAuth tokens in `~/.config/htmlquill/auth.vault` by default and is encrypted with VaultConfig.
+The encrypted vault stores secrets in `~/.config/htmlquill/auth.vault` by default and is encrypted with VaultConfig.
 
 Install support:
 
@@ -174,12 +159,11 @@ Install support:
 pip install "htmlquill[secure]"
 ```
 
-Useful commands:
+Encrypted vault commands are available for inspecting encrypted auth data:
 
 ```bash
 htmlquill auth vault path
 htmlquill auth vault show
-htmlquill auth vault show --profile reddit
 ```
 
 Vault path resolution order:
@@ -203,7 +187,9 @@ For interactive use, let HtmlQuill ask for the vault password. For password-mana
 export HTMLQUILL_VAULT_PASSWORD_COMMAND='pass show htmlquill/vault'
 ```
 
-Do not commit `auth.vault`. On POSIX systems the file should be mode `0600`.
+- Do not commit `auth.vault`. On POSIX systems the file should be mode `0600`.
+- Prefer a password command over a plain environment variable to avoid leaving the password in shell history.
+- `auth vault show` redacts secrets by default.
 
 ### Legacy auth.json
 
@@ -220,10 +206,6 @@ Example `auth.json`:
 {
   "version": 1,
   "profiles": {
-    "reddit": {
-      "kind": "bearer_token",
-      "token_env": "REDDIT_BEARER_TOKEN"
-    },
     "medium": {
       "kind": "browser_state",
       "playwright_storage_state": "~/.config/htmlquill/auth/medium.storage-state.json",
@@ -233,170 +215,14 @@ Example `auth.json`:
 }
 ```
 
-Use `auth.json` for browser state profiles or manual bearer-token setups. Prefer the encrypted vault for Reddit OAuth login.
+Use `auth.json` for browser state profiles.
 
 - Do not commit auth files, storage-state files, or browser profile dirs.
 - Recommended permissions: `chmod 600 ~/.config/htmlquill/auth.json`.
 
-## Reddit login and conversion
+## Reddit
 
-Reddit's normal HTML pages may return a network-security block page to non-browser fetchers. For Reddit comments URLs, use HtmlQuill's `reddit_api` adapter with OAuth.
-
-### 1. Install secure auth support
-
-```bash
-pip install "htmlquill[secure]"
-```
-
-### 2. Configure Reddit defaults
-
-Create or update `~/.config/htmlquill/config.toml`:
-
-```bash
-htmlquill config init
-```
-
-Set the Reddit site config:
-
-```toml
-[paths]
-auth_vault_file = "~/.config/htmlquill/auth.vault"
-
-[sites."reddit.com"]
-adapter = "reddit_api"
-auth = "reddit"
-timeout = 30.0
-user_agent = "linux:htmlquill:v0.3.0 (by /u/YOUR_REDDIT_USERNAME)"
-```
-
-Use your real Reddit username or project contact in the `User-Agent`.
-
-### 3. Create a Reddit app
-
-Create a Reddit app in Reddit's app preferences/developer app page. For HtmlQuill's default local callback, set the redirect URI exactly to:
-
-```text
-http://127.0.0.1:8765/callback
-```
-
-Copy the client ID. If your Reddit app has a client secret, copy that too. If it is an installed/non-confidential app, it may not have a secret; HtmlQuill allows the secret to be blank.
-
-### 4. Login
-
-```bash
-htmlquill auth login reddit --client-id YOUR_REDDIT_CLIENT_ID
-```
-
-If your app has a secret:
-
-```bash
-htmlquill auth login reddit \
-  --client-id YOUR_REDDIT_CLIENT_ID \
-  --client-secret YOUR_REDDIT_CLIENT_SECRET
-```
-
-You can also use environment variables:
-
-```bash
-export REDDIT_CLIENT_ID='...'
-export REDDIT_CLIENT_SECRET='...'   # optional
-htmlquill auth login reddit
-```
-
-The command opens Reddit in your browser, asks you to authorize the app, receives the callback on `127.0.0.1:8765`, then writes an encrypted `reddit` profile to `auth.vault`. HtmlQuill stores OAuth tokens, not your Reddit password.
-
-For headless environments:
-
-```bash
-htmlquill auth login reddit \
-  --client-id YOUR_REDDIT_CLIENT_ID \
-  --print-url \
-  --manual-code
-```
-
-Open the printed URL manually. After Reddit redirects to the local callback URL, copy the `code=...` query parameter from the browser address bar and paste it into HtmlQuill.
-
-### 5. Verify
-
-```bash
-htmlquill auth vault show --profile reddit
-htmlquill config show "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/title/" --profile reddit
-htmlquill doctor --url "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/title/" --profile reddit
-```
-
-The doctor output should report:
-
-- `reddit:adapter` uses `reddit_api`
-- `reddit:token` is available from the encrypted vault
-- `reddit:user_agent` is configured
-
-### 6. Convert a Reddit thread
-
-```bash
-htmlquill convert \
-  "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/my_comprehensive_obsidian_setup_web_clipper_bases/" \
-  -o reddit-thread.md
-```
-
-HtmlQuill will ask for the vault password when it needs to decrypt `auth.vault`.
-
-### Logout or replace credentials
-
-```bash
-htmlquill auth logout reddit
-htmlquill auth login reddit --force --client-id YOUR_REDDIT_CLIENT_ID
-```
-
-`logout` attempts to revoke stored access and refresh tokens, then removes the local `reddit` profile from the vault.
-
-### Reddit troubleshooting
-
-**`secure auth requires VaultConfig`**
-
-Install the secure extra:
-
-```bash
-pip install "htmlquill[secure]"
-```
-
-**`OAuth authorization timed out`**
-
-The browser did not complete the local callback. Check that the Reddit app redirect URI exactly matches `http://127.0.0.1:8765/callback`, or retry with `--print-url --manual-code`.
-
-**`invalid_grant` or redirect mismatch**
-
-The redirect URI in the Reddit app must exactly match the URI generated by HtmlQuill. If you pass `--redirect-port 9999`, configure Reddit with `http://127.0.0.1:9999/callback`.
-
-**`reddit profile already exists in auth vault`**
-
-Use `--force` to replace it:
-
-```bash
-htmlquill auth login reddit --force --client-id YOUR_REDDIT_CLIENT_ID
-```
-
-**`Reddit API adapter requires a bearer token`**
-
-Run `htmlquill auth login reddit`, verify the vault with `htmlquill auth vault show --profile reddit`, and make sure `[sites."reddit.com"].auth = "reddit"` is configured.
-
-**`Reddit API adapter requires a descriptive User-Agent`**
-
-Set:
-
-```toml
-[sites."reddit.com"]
-user_agent = "linux:htmlquill:v0.3.0 (by /u/YOUR_REDDIT_USERNAME)"
-```
-
-**Still seeing Reddit network-security HTML**
-
-Run:
-
-```bash
-htmlquill config show URL --profile reddit
-```
-
-Confirm `adapter` is `reddit_api`. The adapter currently supports Reddit comments URLs only. Other Reddit pages may still use the normal HTML fetch path.
+HtmlQuill no longer ships a Reddit API/OAuth adapter. Reddit URLs are processed through the normal HTML fetch path, the same as other URLs. If Reddit returns a network-security or login interstitial, use a browser-based fetch profile, retry later, or export/save the page manually. `htmlquill auth login reddit` is intentionally not available.
 
 ## Library usage
 

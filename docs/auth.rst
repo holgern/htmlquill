@@ -3,17 +3,13 @@ Authentication
 
 HtmlQuill supports two auth backends:
 
-1. **Encrypted auth vault** (``auth.vault``) for OAuth tokens. This is the
-   recommended backend for Reddit login.
-2. **Legacy JSON auth file** (``auth.json``) for environment-token and
-   browser-state profiles.
+1. **Encrypted auth vault** (``auth.vault``) for encrypted generic secret storage.
+2. **JSON auth file** (``auth.json``) for browser-state profiles.
 
 Encrypted auth vault
 --------------------
 
-The encrypted vault is used by ``htmlquill auth login reddit``. It stores
-OAuth tokens in ``~/.config/htmlquill/auth.vault`` by default and is encrypted
-with VaultConfig.
+The encrypted vault stores secrets in ``~/.config/htmlquill/auth.vault`` by default and is encrypted with VaultConfig.
 
 Install support:
 
@@ -27,7 +23,6 @@ Useful commands:
 
    htmlquill auth vault path
    htmlquill auth vault show
-   htmlquill auth vault show --profile reddit
 
 Vault path resolution order
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -47,13 +42,6 @@ Vault password resolution order
 4. ``VAULTCONFIG_PASSWORD_COMMAND``
 5. interactive password prompt
 
-For interactive use, let HtmlQuill ask for the vault password. For
-password-manager integration, prefer a command such as:
-
-.. code-block:: bash
-
-   export HTMLQUILL_VAULT_PASSWORD_COMMAND='pass show htmlquill/vault'
-
 Security notes
 ~~~~~~~~~~~~~~
 
@@ -63,24 +51,8 @@ Security notes
   leaving the password in shell history.
 - ``auth vault show`` redacts secrets by default.
 
-Reddit login and logout
-~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   htmlquill auth login reddit --client-id YOUR_REDDIT_CLIENT_ID
-
-See :doc:`reddit` for the complete Reddit login quickstart.
-
-.. code-block:: bash
-
-   htmlquill auth logout reddit
-
-``logout`` attempts to revoke stored access and refresh tokens, then removes
-the local ``reddit`` profile from the vault.
-
-Legacy auth.json
-----------------
+JSON auth file
+--------------
 
 Auth file resolution order:
 
@@ -97,10 +69,6 @@ Example ``auth.json``:
    {
      "version": 1,
      "profiles": {
-       "reddit": {
-         "kind": "bearer_token",
-         "token_env": "REDDIT_BEARER_TOKEN"
-       },
        "medium": {
          "kind": "browser_state",
          "playwright_storage_state": "~/.config/htmlquill/auth/medium.storage-state.json",
@@ -108,6 +76,3 @@ Example ``auth.json``:
        }
      }
    }
-
-Use ``auth.json`` for browser state profiles or manual bearer-token setups.
-Prefer the encrypted vault for Reddit OAuth login.

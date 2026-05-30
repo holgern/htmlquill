@@ -18,8 +18,8 @@ else:  # pragma: no cover on py311+
 
 BrowserMode = Literal["auto", "requests", "playwright", "chromium"]
 VALID_BROWSERS: tuple[BrowserMode, ...] = ("auto", "requests", "playwright", "chromium")
-AdapterMode = Literal["html", "reddit_api"]
-VALID_ADAPTERS: tuple[AdapterMode, ...] = ("html", "reddit_api")
+AdapterMode = Literal["html"]
+VALID_ADAPTERS: tuple[AdapterMode, ...] = ("html",)
 
 
 @dataclass(frozen=True)
@@ -118,6 +118,12 @@ def _parse_adapter(value: Any, *, field_name: str) -> AdapterMode:
     if not isinstance(value, str):
         raise ValueError(f"{field_name} must be a string")
     lower = value.strip().lower()
+    if lower == "reddit_api":
+        raise ValueError(
+            "invalid adapter value 'reddit_api' for "
+            f"{field_name}; the Reddit API/OAuth adapter was removed. "
+            "Use adapter='html' or remove the adapter setting."
+        )
     if lower not in VALID_ADAPTERS:
         valid = ", ".join(VALID_ADAPTERS)
         raise ValueError(

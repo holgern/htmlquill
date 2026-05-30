@@ -223,8 +223,10 @@ def _challenge_error_hint(url: str, html: str) -> str | None:
             return (
                 "received a Reddit network-security block page instead of content "
                 "HTML; "
-                "Reddit blocks unidentified clients/crawlers, so use a configured "
-                "Reddit API/OAuth adapter or a logged-in browser profile"
+                "Reddit may block automated clients. Try browser mode with a "
+                "logged-in browser profile, retry later, or save/export the page "
+                "manually. HtmlQuill no longer provides a built-in Reddit "
+                "API/OAuth adapter."
             )
     return None
 

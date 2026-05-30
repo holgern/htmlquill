@@ -97,11 +97,16 @@ class TestFetchHtmlRequestsMode:
 
         monkeypatch.setattr("requests.get", lambda *a, **kw: mock_response)
 
-        with pytest.raises(FetchError, match="Reddit network-security block page"):
+        with pytest.raises(FetchError) as excinfo:
             fetch_html(
                 "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/example/",
                 browser="requests",
             )
+
+        message = str(excinfo.value)
+        assert "Reddit network-security block page" in message
+        assert "use a configured" not in message
+        assert "auth login reddit" not in message
 
 
 class TestFetchHtmlAutoMode:

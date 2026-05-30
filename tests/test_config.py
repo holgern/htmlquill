@@ -172,28 +172,19 @@ challenge_markers = ["site marker"]
         assert marker in opts.challenge_markers
 
 
-def test_reddit_adapter_is_parsed_and_resolved(tmp_path: Path) -> None:
-    config_path = tmp_path / "config.toml"
+def test_reddit_api_adapter_is_rejected(tmp_path: Path) -> None:
+    config_path = tmp_path / "bad.toml"
     config_path.write_text(
         """
 version = 1
-[defaults]
-adapter = "html"
-
 [sites."reddit.com"]
 adapter = "reddit_api"
-browser = "requests"
 """,
         encoding="utf-8",
     )
 
-    cfg = load_config(config_path)
-    opts = resolve_options(
-        "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/title/",
-        cfg,
-        CliOverrides(),
-    )
-    assert opts.adapter == "reddit_api"
+    with pytest.raises(ValueError, match="Reddit API/OAuth adapter was removed"):
+        load_config(config_path)
 
 
 def test_invalid_adapter_value_raises_clean_error(tmp_path: Path) -> None:
@@ -211,21 +202,11 @@ adapter = "bad_adapter"
         load_config(config_path)
 
 
-def test_reddit_adapter_hostname_suffix_match(tmp_path: Path) -> None:
-    config_path = tmp_path / "config.toml"
-    config_path.write_text(
-        """
-version = 1
-[sites."reddit.com"]
-adapter = "reddit_api"
-""",
-        encoding="utf-8",
-    )
-
-    cfg = load_config(config_path)
+def test_reddit_url_returns_html_adapter_by_default(tmp_path: Path) -> None:
+    cfg = load_config(None)
     opts = resolve_options(
         "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/title/",
         cfg,
         CliOverrides(),
     )
-    assert opts.adapter == "reddit_api"
+    assert opts.adapter == "html"
