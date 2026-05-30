@@ -84,6 +84,22 @@ class TestCLIUrl:
         assert rc == 0
         assert mock_url.call_args[1]["headers"] == {"User-Agent": "TestAgent/1.0"}
 
+    def test_url_with_chromium_browser(self, tmp_path: Path) -> None:
+        output_file = tmp_path / "test.md"
+        with patch("htmlquill.cli.url_to_markdown") as mock_url:
+            mock_url.return_value = "Content.\n"
+            rc = main(
+                [
+                    "https://example.com",
+                    "--browser",
+                    "chromium",
+                    "-o",
+                    str(output_file),
+                ]
+            )
+        assert rc == 0
+        assert mock_url.call_args[1]["browser"] == "chromium"
+
 
 class TestCLIError:
     def test_nonexistent_file(self) -> None:

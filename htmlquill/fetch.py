@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from collections.abc import Mapping
 from typing import Literal
 
@@ -9,7 +11,7 @@ import requests
 
 DEFAULT_USER_AGENT = "htmlquill/0.1 (+https://github.com/holgern/htmlquill)"
 
-BrowserMode = Literal["auto", "requests", "playwright"]
+BrowserMode = Literal["auto", "requests", "playwright", "chromium"]
 
 
 class FetchError(RuntimeError):
@@ -58,6 +60,103 @@ def _fetch_with_playwright(url: str, *, timeout: float = 20.0) -> str:
     return html
 
 
+CHROMIUM_EXECUTABLES = (
+    "chromium",
+    "chromium-browser",
+    "google-chrome",
+    "google-chrome-stable",
+)
+
+
+def _find_chromium() -> str | None:
+    """Search PATH for a Chromium-like executable."""
+    for name in CHROMIUM_EXECUTABLES:
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+def _fetch_with_chromium(url: str, *, timeout: float = 20.0) -> str:
+    """Fetch a URL using a system Chromium executable in headless mode.
+
+    Parameters
+    ----------
+    url
+        The URL to fetch.
+    timeout
+        Navigation timeout in seconds.
+
+    Returns
+    -------
+    str
+        The HTML content after JavaScript execution.
+
+    Raises
+    ------
+    FetchError
+        If Chromium is not found, times out, or returns non-HTML.
+    """
+    executable = _find_chromium()
+    if executable is None:
+        names = ", ".join(CHROMIUM_EXECUTABLES)
+        raise FetchError(f"Chromium executable not found on PATH; tried: {names}")
+
+    cmd = [
+        executable,
+        "--headless=new",
+        "--disable-gpu",
+        "--no-sandbox",
+        "--dump-dom",
+        url,
+    ]
+
+    try:
+        completed = subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise FetchError(f"chromium fetch timed out for {url!r}") from exc
+    except OSError as exc:
+        raise FetchError(f"failed to run chromium for {url!r}: {exc}") from exc
+
+    if completed.returncode != 0:
+        stderr = completed.stderr.strip()
+        # Fallback to legacy --headless for older Chromium builds.
+        fallback_cmd = [
+            executable,
+            "--headless",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--dump-dom",
+            url,
+        ]
+        try:
+            completed = subprocess.run(
+                fallback_cmd,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise FetchError(f"chromium fallback timed out for {url!r}") from exc
+        except OSError as exc:
+            raise FetchError(f"chromium fallback failed for {url!r}: {exc}") from exc
+        if completed.returncode != 0:
+            stderr = completed.stderr.strip()
+            raise FetchError(f"chromium fetch failed for {url!r}: {stderr}")
+
+    html = completed.stdout
+    if not _looks_like_html(html):
+        raise FetchError(f"chromium result did not look like HTML: {url!r}")
+    return html
+
+
 def _looks_like_html(text: str, content_type: str = "") -> bool:
     """Check if the response looks like HTML."""
     if "html" in content_type.lower():
@@ -87,6 +186,8 @@ def fetch_html(
 
         - ``"requests"`` — plain HTTP via *requests* (the default backend).
         - ``"playwright"`` — always use headless Chromium via Playwright.
+        - ``"chromium"`` — use a system-installed Chromium executable
+          via subprocess (no Playwright package required).
         - ``"auto"`` — try *requests* first; on HTTP 403, fall back to
           Playwright if available.
 
@@ -100,6 +201,9 @@ def fetch_html(
     FetchError
         If the request fails or the response does not look like HTML.
     """
+
+    if browser == "chromium":
+        return _fetch_with_chromium(url, timeout=timeout)
     if browser == "playwright":
         html = _fetch_with_playwright(url, timeout=timeout)
         if not _looks_like_html(html):

@@ -57,7 +57,7 @@ def url_to_markdown(
     headers
         Optional custom HTTP headers.
     browser
-        Fetching mode: ``"auto"``, ``"requests"``, or ``"playwright"``.
+        Fetching mode: ``"auto"``, ``"requests"``, ``"playwright"``, or ``"chromium"``.
         See :func:`fetch_html` for details.
 
     Returns

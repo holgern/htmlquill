@@ -43,9 +43,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--browser",
-        choices=["auto", "requests", "playwright"],
+        choices=["auto", "requests", "playwright", "chromium"],
         default="auto",
-        help="Fetching mode: auto (default), requests, or playwright (requires htmlquill[browser])",
+        help="Fetching mode: auto (default), requests, playwright, or chromium",
     )
     return parser
 

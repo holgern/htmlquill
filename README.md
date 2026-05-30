@@ -26,12 +26,29 @@ htmlquill page.html
 
 ### CLI options
 
-| Option           | Description                                           |
-| ---------------- | ----------------------------------------------------- |
-| `SOURCE`         | URL (`https://...`), HTML file path, or `-` for stdin |
-| `-o`, `--output` | Output file path (default: stdout)                    |
-| `--timeout`      | HTTP timeout in seconds (default: 20)                 |
-| `--user-agent`   | Custom HTTP User-Agent header                         |
+| Option           | Description                                                                      |
+| ---------------- | -------------------------------------------------------------------------------- |
+| `SOURCE`         | URL (`https://...`), HTML file path, or `-` for stdin                            |
+| `-o`, `--output` | Output file path (default: stdout)                                               |
+| `--timeout`      | HTTP timeout in seconds (default: 20)                                            |
+| `--user-agent`   | Custom HTTP User-Agent header                                                    |
+| `--browser`      | Fetching mode: `auto`, `requests`, `playwright`, or `chromium` (default: `auto`) |
+
+### Browser modes
+
+```bash
+# Requests-only mode (recommended for Termux / minimal installs)
+htmlquill --browser requests https://example.com -o page.md
+
+# Use an installed Chromium executable without Playwright
+htmlquill --browser chromium https://example.com -o page.md
+
+# Use Playwright (requires pip install htmlquill[browser])
+htmlquill --browser playwright https://example.com -o page.md
+```
+
+Playwright is optional. On platforms where the Playwright Python package is
+unavailable but Chromium is installed, use `--browser chromium`.
 
 ## Library usage
 
