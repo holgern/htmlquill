@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from htmlquill.clean import parse_and_clean
-from htmlquill.fetch import fetch_html
+from htmlquill.fetch import BrowserMode, fetch_html
 from htmlquill.render import MarkdownRenderer, normalize_markdown
 
 
@@ -44,6 +44,7 @@ def url_to_markdown(
     *,
     timeout: float = 20.0,
     headers: Mapping[str, str] | None = None,
+    browser: BrowserMode = "auto",
 ) -> str:
     """Fetch a URL and convert the response HTML to Markdown.
 
@@ -55,11 +56,14 @@ def url_to_markdown(
         HTTP request timeout in seconds.
     headers
         Optional custom HTTP headers.
+    browser
+        Fetching mode: ``"auto"``, ``"requests"``, or ``"playwright"``.
+        See :func:`fetch_html` for details.
 
     Returns
     -------
     str
         Normalized Markdown text.
     """
-    html = fetch_html(url, timeout=timeout, headers=headers)
+    html = fetch_html(url, timeout=timeout, headers=headers, browser=browser)
     return html_to_markdown(html, base_url=url)

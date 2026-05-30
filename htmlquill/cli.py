@@ -41,6 +41,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--user-agent",
         help="Custom HTTP User-Agent header",
     )
+    parser.add_argument(
+        "--browser",
+        choices=["auto", "requests", "playwright"],
+        default="auto",
+        help="Fetching mode: auto (default), requests, or playwright (requires htmlquill[browser])",
+    )
     return parser
 
 
@@ -61,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
         elif is_url(args.source):
             headers = {"User-Agent": args.user_agent} if args.user_agent else None
             markdown = url_to_markdown(
-                args.source, timeout=args.timeout, headers=headers
+                args.source, timeout=args.timeout, headers=headers, browser=args.browser
             )
         else:
             path = Path(args.source)

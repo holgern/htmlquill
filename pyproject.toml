@@ -68,6 +68,9 @@ dev = [
 rich = [
     "rich",
 ]
+browser = [
+    "playwright>=1.40",
+]
 
 [tool.setuptools_scm]
 write_to = "htmlquill/_version.py"
