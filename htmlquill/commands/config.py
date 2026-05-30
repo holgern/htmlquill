@@ -9,7 +9,7 @@ import click
 import typer
 
 from htmlquill.auth import resolve_auth_path
-from htmlquill.config import load_config, resolve_config_path
+from htmlquill.config import _parse_browser, load_config, resolve_config_path
 from htmlquill.core import resolve_url_context, resolved_context_to_dict
 from htmlquill.urls import is_url
 
@@ -94,11 +94,15 @@ def config_show(
     config_input: bool | str = False if no_config else (config or True)
     auth_input: bool | str = False if no_auth else (auth_file or True)
 
+    parsed_browser = (
+        _parse_browser(browser, field_name="--browser") if browser is not None else None
+    )
+
     context = resolve_url_context(
         url,
         timeout=timeout,
         headers=headers,
-        browser=browser,  # type: ignore[arg-type]
+        browser=parsed_browser,
         config=config_input,
         auth=auth_input,
         profile=profile,
@@ -144,7 +148,7 @@ def config_validate(
     """Validate config file syntax and references."""
 
     cfg = load_config(Path(config).expanduser() if config else None)
-    warnings: list[str] = []
+    warnings: list[str] = list(cfg.warnings)
 
     if check_auth:
         config_dir = cfg.source_path.parent if cfg.source_path is not None else None

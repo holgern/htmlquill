@@ -35,6 +35,7 @@ class ResolvedFetchContext:
     auth: ResolvedAuth
     config_path: Path | None
     auth_path: Path | None
+    config_warnings: tuple[str, ...] = ()
 
 
 def html_to_markdown(
@@ -139,6 +140,7 @@ def resolve_url_context(
         auth=resolved_auth,
         config_path=config_obj.source_path,
         auth_path=auth_path,
+        config_warnings=config_obj.warnings,
     )
 
 
@@ -164,6 +166,7 @@ def resolved_context_to_dict(
         "headers": merged_headers,
         "auth": redacted_auth_dict(context.auth),
         "challenge_markers": list(context.options.challenge_markers),
+        "config_warnings": list(context.config_warnings),
         "fail_on_challenge": context.options.fail_on_challenge,
         "fallback_on_challenge": context.options.fallback_on_challenge,
     }

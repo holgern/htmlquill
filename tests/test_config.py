@@ -172,8 +172,8 @@ challenge_markers = ["site marker"]
         assert marker in opts.challenge_markers
 
 
-def test_reddit_api_adapter_is_rejected(tmp_path: Path) -> None:
-    config_path = tmp_path / "bad.toml"
+def test_legacy_reddit_api_adapter_is_migrated_to_html(tmp_path: Path) -> None:
+    config_path = tmp_path / "legacy.toml"
     config_path.write_text(
         """
 version = 1
@@ -183,8 +183,43 @@ adapter = "reddit_api"
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="Reddit API/OAuth adapter was removed"):
-        load_config(config_path)
+    cfg = load_config(config_path)
+    resolved = resolve_options(
+        "https://www.reddit.com/r/test/comments/abc/title/",
+        cfg,
+        CliOverrides(),
+    )
+
+    assert resolved.adapter == "html"
+    assert cfg.warnings == (
+        "sites.reddit.com.adapter: adapter='reddit_api' was removed; "
+        "using adapter='html'. Remove this setting from config.toml.",
+    )
+
+
+def test_unrelated_url_ignores_legacy_reddit_api_adapter(tmp_path: Path) -> None:
+    config_path = tmp_path / "legacy.toml"
+    config_path.write_text(
+        """
+version = 1
+[sites."reddit.com"]
+adapter = "reddit_api"
+
+[sites."addyosmani.com"]
+browser = "requests"
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_config(config_path)
+    resolved = resolve_options(
+        "https://addyosmani.com/blog/agent-skills/",
+        cfg,
+        CliOverrides(),
+    )
+
+    assert resolved.adapter == "html"
+    assert resolved.browser == "requests"
 
 
 def test_invalid_adapter_value_raises_clean_error(tmp_path: Path) -> None:

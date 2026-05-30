@@ -53,6 +53,7 @@ class HtmlQuillConfig:
     challenge_markers: tuple[str, ...] = ()
     sites: dict[str, SiteConfig] = field(default_factory=dict)
     source_path: Path | None = None
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -114,16 +115,22 @@ def _parse_browser(value: Any, *, field_name: str) -> BrowserMode:
     return lower
 
 
-def _parse_adapter(value: Any, *, field_name: str) -> AdapterMode:
+def _parse_adapter(
+    value: Any,
+    *,
+    field_name: str,
+    warnings: list[str] | None = None,
+) -> AdapterMode:
     if not isinstance(value, str):
         raise ValueError(f"{field_name} must be a string")
     lower = value.strip().lower()
     if lower == "reddit_api":
-        raise ValueError(
-            "invalid adapter value 'reddit_api' for "
-            f"{field_name}; the Reddit API/OAuth adapter was removed. "
-            "Use adapter='html' or remove the adapter setting."
-        )
+        if warnings is not None:
+            warnings.append(
+                f"{field_name}: adapter='reddit_api' was removed; using adapter='html'. "
+                "Remove this setting from config.toml."
+            )
+        return "html"
     if lower not in VALID_ADAPTERS:
         valid = ", ".join(VALID_ADAPTERS)
         raise ValueError(
@@ -162,13 +169,15 @@ def _to_marker_tuple(value: Any, *, field_name: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value if item.strip())
 
 
-def _parse_site_config(name: str, raw: Any) -> SiteConfig:
+def _parse_site_config(name: str, raw: Any, *, warnings: list[str] | None = None) -> SiteConfig:
     if not isinstance(raw, dict):
         raise ValueError(f"sites.{name} must be a table")
 
     adapter = None
     if "adapter" in raw and raw["adapter"] not in (None, ""):
-        adapter = _parse_adapter(raw["adapter"], field_name=f"sites.{name}.adapter")
+        adapter = _parse_adapter(
+            raw["adapter"], field_name=f"sites.{name}.adapter", warnings=warnings
+        )
 
     browser = None
     if "browser" in raw and raw["browser"] not in (None, ""):
@@ -253,10 +262,14 @@ def load_config(path: Path | None = None) -> HtmlQuillConfig:
     if not isinstance(defaults_table, dict):
         raise ValueError("defaults must be a TOML table")
 
+    config_warnings: list[str] = []
+
     defaults_adapter: AdapterMode = "html"
     if "adapter" in defaults_table and defaults_table["adapter"] not in (None, ""):
         defaults_adapter = _parse_adapter(
-            defaults_table["adapter"], field_name="defaults.adapter"
+            defaults_table["adapter"],
+            field_name="defaults.adapter",
+            warnings=config_warnings,
         )
 
     defaults_browser: BrowserMode = "auto"
@@ -301,7 +314,10 @@ def load_config(path: Path | None = None) -> HtmlQuillConfig:
     raw_sites = payload.get("sites", {})
     if not isinstance(raw_sites, dict):
         raise ValueError("sites must be a TOML table")
-    sites = {name: _parse_site_config(name, raw) for name, raw in raw_sites.items()}
+    sites = {
+        name: _parse_site_config(name, raw, warnings=config_warnings)
+        for name, raw in raw_sites.items()
+    }
 
     version = payload.get("version", 1)
     if not isinstance(version, int):
@@ -315,6 +331,7 @@ def load_config(path: Path | None = None) -> HtmlQuillConfig:
         challenge_markers=challenge_markers,
         sites=sites,
         source_path=resolved_path,
+        warnings=tuple(config_warnings),
     )
 
 
@@ -418,7 +435,7 @@ def resolve_options(
 
     # CLI overrides
     if cli.browser is not None:
-        browser = cli.browser
+        browser = _parse_browser(cli.browser, field_name="--browser")
     if cli.timeout is not None:
         timeout = cli.timeout
     if cli.user_agent is not None:

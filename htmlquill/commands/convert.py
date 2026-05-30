@@ -37,6 +37,16 @@ def convert_command(
     output_dir: str | None,
     force: bool,
 ) -> None:
+    if filename_max_length < 8:
+        raise typer.BadParameter("--filename-max-length must be at least 8")
+
+    if stdout and filename_only:
+        raise typer.BadParameter("--stdout and --filename-only cannot be used together")
+    if stdout and output:
+        raise typer.BadParameter("--stdout and --output cannot be used together")
+    if output and output_dir:
+        raise typer.BadParameter("--output-dir cannot be used with --output")
+
     if source == "-":
         if print_config:
             raise typer.BadParameter("--print-config requires a URL source")
@@ -77,16 +87,6 @@ def convert_command(
             path.read_text(encoding="utf-8"),
             base_url=path.resolve().as_uri(),
         )
-
-    if filename_max_length < 8:
-        raise typer.BadParameter("--filename-max-length must be at least 8")
-
-    if stdout and filename_only:
-        raise typer.BadParameter("--stdout and --filename-only cannot be used together")
-    if stdout and output:
-        raise typer.BadParameter("--stdout and --output cannot be used together")
-    if output and output_dir:
-        raise typer.BadParameter("--output-dir cannot be used with --output")
 
     if stdout:
         typer.echo(markdown, nl=False)

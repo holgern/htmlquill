@@ -361,7 +361,7 @@ browser = "requests"
         payload = json.loads(result.output)
         assert payload["adapter"] == "html"
 
-    def test_config_show_rejects_removed_reddit_api_adapter(
+    def test_config_show_migrates_legacy_reddit_api_adapter(
         self, monkeypatch: object, tmp_path: Path
     ) -> None:
         config_home = tmp_path / "xdg"
@@ -386,8 +386,30 @@ adapter = "reddit_api"
             ],
         )
 
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["adapter"] == "html"
+        assert payload["config_warnings"] == [
+            "sites.reddit.com.adapter: adapter='reddit_api' was removed; "
+            "using adapter='html'. Remove this setting from config.toml."
+        ]
+
+    def test_config_show_rejects_invalid_browser_override(self) -> None:
+        result = runner.invoke(
+            app,
+            [
+                "config",
+                "show",
+                "https://example.com",
+                "--browser",
+                "nonsense",
+            ],
+        )
+
         assert result.exit_code != 0
-        assert "reddit_api" in result.output or "reddit_api" in str(result.exception)
+        assert "invalid browser value" in result.output or "invalid browser value" in str(
+            result.exception
+        )
 
     def test_auth_help_does_not_list_login_logout(self) -> None:
         result = runner.invoke(app, ["auth", "--help"])

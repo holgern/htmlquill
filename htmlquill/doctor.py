@@ -76,11 +76,16 @@ def run_doctor(  # noqa: C901
         config_state = (
             "exists" if config_resolved.exists() else "not found; using defaults"
         )
+        config_status = "ok" if config_resolved.exists() else "info"
+        config_message = f"{config_resolved} ({config_state})"
+        if cfg.warnings:
+            config_status = "warn"
+            config_message = f"{config_message}; " + "; ".join(cfg.warnings)
         checks.append(
             DoctorCheck(
                 "config",
-                "ok" if config_resolved.exists() else "info",
-                f"{config_resolved} ({config_state})",
+                config_status,
+                config_message,
             )
         )
     except Exception as exc:
