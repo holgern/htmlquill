@@ -422,6 +422,7 @@ user_agent = "linux:htmlquill:v0.2.0 (by /u/test)"
                     [
                         "convert",
                         "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/my_title/",
+                        "--stdout",
                     ],
                 )
 
