@@ -32,7 +32,6 @@ class AuthProfile:
     chromium_user_data_dir: Path | None = None
 
 
-
 @dataclass(frozen=True)
 class AuthStore:
     version: int = 1
@@ -46,7 +45,6 @@ class ResolvedAuth:
     cookies: list[dict[str, object]] | None = None
     playwright_storage_state: str | None = None
     chromium_user_data_dir: str | None = None
-
 
 
 def _env_flag(name: str) -> bool:

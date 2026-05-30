@@ -5,8 +5,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-
 
 from htmlquill.auth import (
     AuthStore,
@@ -25,7 +23,6 @@ from htmlquill.config import (
     ResolvedOptions,
     config_enabled_for_run,
     load_config,
-
     resolve_options,
 )
 from htmlquill.fetch import FetchError, fetch_html
@@ -38,7 +35,6 @@ class ResolvedFetchContext:
     auth: ResolvedAuth
     config_path: Path | None
     auth_path: Path | None
-
 
 
 def html_to_markdown(
@@ -102,8 +98,6 @@ def _auth_store_from_input(
         return None, auth_path
 
     return load_auth(auth_path), auth_path
-
-
 
 
 def resolve_url_context(
