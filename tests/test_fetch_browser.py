@@ -92,6 +92,9 @@ class TestFetchHtmlAutoMode:
         )
         monkeypatch.setattr("requests.get", lambda *a, **kw: mock_response)
 
+        # Chromium not available so it falls through to Playwright
+        monkeypatch.setattr("htmlquill.fetch._find_chromium", lambda: None)
+
         # _fetch_with_playwright returns valid HTML
         monkeypatch.setattr(
             "htmlquill.fetch._fetch_with_playwright",
@@ -115,6 +118,9 @@ class TestFetchHtmlAutoMode:
         )
         monkeypatch.setattr("requests.get", lambda *a, **kw: mock_response)
 
+        # Simulate chromium not available
+        monkeypatch.setattr("htmlquill.fetch._find_chromium", lambda: None)
+
         # Simulate playwright not available
         def _fail_pw(url: str, *, timeout: float = 20.0) -> str:
             raise FetchError("Playwright is required for browser-based fetching.")
@@ -123,6 +129,95 @@ class TestFetchHtmlAutoMode:
 
         with pytest.raises(FetchError, match="failed to fetch"):
             fetch_html("https://example.com", browser="auto")
+
+    def test_auto_403_tries_chromium_before_playwright(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from unittest.mock import MagicMock
+
+        import requests
+
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        mock_response.raise_for_status = MagicMock(
+            side_effect=requests.HTTPError(response=mock_response)
+        )
+        monkeypatch.setattr("requests.get", lambda *a, **kw: mock_response)
+
+        # Chromium is available
+        monkeypatch.setattr(
+            "htmlquill.fetch._find_chromium", lambda: "/usr/bin/chromium"
+        )
+
+        # Chromium succeeds
+        monkeypatch.setattr(
+            "htmlquill.fetch._fetch_with_chromium",
+            lambda url, *, timeout=20.0: "<html><body>Chromium auto</body></html>",
+        )
+
+        result = fetch_html("https://example.com", browser="auto")
+        assert "Chromium auto" in result
+
+    def test_auto_403_chromium_fails_tries_playwright(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from unittest.mock import MagicMock
+
+        import requests
+
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        mock_response.raise_for_status = MagicMock(
+            side_effect=requests.HTTPError(response=mock_response)
+        )
+        monkeypatch.setattr("requests.get", lambda *a, **kw: mock_response)
+
+        # Chromium is available but fails
+        monkeypatch.setattr(
+            "htmlquill.fetch._find_chromium", lambda: "/usr/bin/chromium"
+        )
+
+        def _fail_chromium(url: str, *, timeout: float = 20.0) -> str:
+            raise FetchError("chromium fetch failed")
+
+        monkeypatch.setattr("htmlquill.fetch._fetch_with_chromium", _fail_chromium)
+
+        # Playwright succeeds
+        monkeypatch.setattr(
+            "htmlquill.fetch._fetch_with_playwright",
+            lambda url, *, timeout=20.0: (
+                "<html><body>Playwright fallback</body></html>"
+            ),
+        )
+
+        result = fetch_html("https://example.com", browser="auto")
+        assert "Playwright fallback" in result
+
+    def test_auto_403_no_chromium_tries_playwright(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from unittest.mock import MagicMock
+
+        import requests
+
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        mock_response.raise_for_status = MagicMock(
+            side_effect=requests.HTTPError(response=mock_response)
+        )
+        monkeypatch.setattr("requests.get", lambda *a, **kw: mock_response)
+
+        # Chromium not available
+        monkeypatch.setattr("htmlquill.fetch._find_chromium", lambda: None)
+
+        # Playwright succeeds
+        monkeypatch.setattr(
+            "htmlquill.fetch._fetch_with_playwright",
+            lambda url, *, timeout=20.0: "<html><body>Playwright only</body></html>",
+        )
+
+        result = fetch_html("https://example.com", browser="auto")
+        assert "Playwright only" in result
 
 
 class TestFetchHtmlPlaywrightMode:

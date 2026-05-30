@@ -155,6 +155,8 @@ class MarkdownRenderer:
     def render_a(self, node: Tag) -> str:
         text = self.render_children(node).strip() or node.get_text(strip=True)
         href = str(node.get("href") or "").strip()
+        if not text:
+            return ""
         if not href or href.lower().startswith("javascript:"):
             return text
         if href.lower().startswith("mailto:"):
@@ -164,11 +166,73 @@ class MarkdownRenderer:
 
     def render_img(self, node: Tag) -> str:
         alt = str(node.get("alt") or "").strip()
-        src = str(node.get("src") or "").strip()
+
+        # Check for picture > source srcset from parent
+        src = self._resolve_image_src(node)
+
         if not src:
             return ""
         absolute_src = urljoin(self.base_url or "", src)
         return f"![{alt}]({absolute_src})"
+
+    def render_picture(self, node: Tag) -> str:
+        # Render the img child inside a picture element
+        img = node.find("img")
+        if img is not None:
+            return self.render_img(img)
+        return ""
+
+    def _resolve_image_src(self, img: Tag) -> str:
+        """Resolve the best image source URL from various attributes."""
+
+        # 1. Check srcset on the img itself (pick highest resolution)
+        srcset = str(img.get("srcset") or "").strip()
+        if srcset:
+            best = self._pick_best_srcset(srcset)
+            if best:
+                return best
+
+        # 2. Check for picture > source srcset
+        parent = img.parent
+        if parent is not None and isinstance(parent, Tag) and parent.name == "picture":
+            for source in parent.find_all("source"):
+                srcset = str(source.get("srcset") or "").strip()
+                if srcset:
+                    best = self._pick_best_srcset(srcset)
+                    if best:
+                        return best
+
+        # 3. Check data-src, data-original
+        for attr in ("data-src", "data-original"):
+            val = str(img.get(attr) or "").strip()
+            if val:
+                return val
+
+        # 4. Fall back to src
+        return str(img.get("src") or "").strip()
+
+    def _pick_best_srcset(self, srcset: str) -> str:
+        """Parse srcset and return the URL with the highest width descriptor."""
+        best_url = ""
+        best_width = -1
+        for entry in srcset.split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            parts = entry.split()
+            url = parts[0]
+            width = 0
+            if len(parts) > 1:
+                # Parse width descriptor like "1280w"
+                m = re.match(r"(\d+)w", parts[1])
+                if m:
+                    width = int(m.group(1))
+            else:
+                width = 0
+            if width > best_width:
+                best_width = width
+                best_url = url
+        return best_url
 
     # --- Lists ---
 
@@ -258,11 +322,32 @@ class MarkdownRenderer:
                     if cls.startswith("language-"):
                         lang = cls[len("language-") :]
                         break
-            code_text = code_tag.get_text()
+            code_text = self._pre_text(code_tag)
         else:
             lang = ""
-            code_text = node.get_text()
+            code_text = self._pre_text(node)
         return f"\n\n```{lang}\n{code_text}\n```\n\n"
+
+    def _pre_text(self, node: Tag) -> str:
+        """Extract text from a pre/code node, reconstructing line boundaries."""
+        # Check for Medium-style line wrappers: pre div, pre p, pre span[data-testid]
+        line_containers = node.select("div, p")
+        if line_containers:
+            lines: list[str] = []
+            for container in line_containers:
+                line_text = container.get_text("", strip=False).rstrip("\n")
+                lines.append(line_text)
+            return "\n".join(lines)
+
+        # Check for span-based line wrappers (e.g., [data-line], .line)
+        span_lines = node.select("[data-line], .line")
+        if span_lines:
+            return "\n".join(
+                span.get_text("", strip=False).rstrip("\n") for span in span_lines
+            )
+
+        # Default: use get_text with newline separator to handle nested spans
+        return node.get_text("")
 
     # --- Tables ---
 

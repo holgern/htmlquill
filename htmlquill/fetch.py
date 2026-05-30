@@ -223,23 +223,30 @@ def fetch_html(
         response = requests.get(url, headers=request_headers, timeout=timeout)
         response.raise_for_status()
     except requests.RequestException as exc:
-        # In auto mode, retry with Playwright on 403
+        # In auto mode, retry with Chromium then Playwright on 403
         if (
             browser == "auto"
             and isinstance(exc, requests.HTTPError)
             and exc.response is not None
             and exc.response.status_code == 403
         ):
+            # Try system Chromium first
+            if _find_chromium() is not None:
+                try:
+                    html = _fetch_with_chromium(url, timeout=timeout)
+                    return html
+                except FetchError:
+                    pass
+            # Then try Playwright
             try:
                 html = _fetch_with_playwright(url, timeout=timeout)
                 if not _looks_like_html(html):
                     raise FetchError(f"browser result did not look like HTML: {url!r}")  # noqa: TRY301
                 return html
             except FetchError:
-                # Playwright failed or not installed — raise the original 403
+                # All browser fallbacks failed — raise the original 403
                 pass
         raise FetchError(f"failed to fetch {url!r}: {exc}") from exc
-
     content_type = response.headers.get("content-type", "")
     if not _looks_like_html(response.text, content_type):
         raise FetchError(f"URL did not look like HTML: {url!r}")

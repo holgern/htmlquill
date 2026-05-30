@@ -37,6 +37,7 @@ htmlquill page.html
 ### Browser modes
 
 ```bash
+
 # Requests-only mode (recommended for Termux / minimal installs)
 htmlquill --browser requests https://example.com -o page.md
 
@@ -47,8 +48,20 @@ htmlquill --browser chromium https://example.com -o page.md
 htmlquill --browser playwright https://example.com -o page.md
 ```
 
-Playwright is optional. On platforms where the Playwright Python package is
-unavailable but Chromium is installed, use `--browser chromium`.
+### Browser mode details
+
+- **`auto`** (default): tries `requests` first; on HTTP 403, falls back to
+  system Chromium if available, then Playwright if installed.
+- **`requests`**: plain HTTP via the _requests_ library. No browser needed.
+  Recommended for Termux and minimal environments.
+- **`chromium`**: uses a system-installed Chromium executable via subprocess.
+  No Playwright package required. Searches for `chromium`, `chromium-browser`,
+  `google-chrome`, or `google-chrome-stable` on `PATH`.
+- **`playwright`**: uses headless Chromium via the Playwright Python package.
+  Requires `pip install htmlquill[browser] && playwright install chromium`.
+
+Playwright is **optional**. For Termux or minimal installs, use
+`--browser requests` or `--browser chromium`.
 
 ## Library usage
 
