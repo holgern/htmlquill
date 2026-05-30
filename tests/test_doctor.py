@@ -101,7 +101,8 @@ user_agent = "linux:htmlquill:v0.2.0 (by /u/test)"
 
 
 def test_doctor_reports_missing_vaultconfig_when_secure_auth_configured(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When vaultconfig is not available, doctor reports it as warn."""
     config_home = tmp_path / "xdg"
@@ -123,7 +124,8 @@ auth_vault_file = "~/.config/htmlquill/auth.vault"
 
 
 def test_doctor_reports_vault_exists(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When a vault file exists, doctor reports it."""
     config_home = tmp_path / "xdg"
@@ -146,7 +148,8 @@ auth_vault_file = "auth.vault"
 
 
 def test_doctor_reports_vault_permissions_warning(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When vault has insecure permissions, doctor warns."""
     if os.name == "nt":
@@ -174,7 +177,8 @@ auth_vault_file = "auth.vault"
 
 
 def test_doctor_vault_encrypted_when_vaultconfig_available(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When vaultconfig is available and vault exists, check encryption."""
     config_home = tmp_path / "xdg"

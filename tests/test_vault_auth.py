@@ -22,6 +22,7 @@ from htmlquill.vault import (
 def _import_vaultconfig_crypt():
     """Lazy import for test use."""
     from vaultconfig import crypt
+
     return crypt
 
 
@@ -78,6 +79,7 @@ class TestSaveLoadAuthVault:
         save_auth_vault(vault_path, _make_vault_payload(), password=vault_password)
 
         import stat
+
         mode = stat.S_IMODE(vault_path.stat().st_mode)
         assert mode & 0o077 == 0, f"expected 0600, got {oct(mode)}"
 
@@ -139,21 +141,27 @@ class TestSaveLoadAuthVault:
         # Actually, vaultconfig's decrypt may fail on non-encrypted data.
         # This test verifies the behavior.
 
-    def test_atomic_write_cleans_up_temp(self, tmp_path: Path, vault_password: str) -> None:  # noqa: E501
+    def test_atomic_write_cleans_up_temp(
+        self, tmp_path: Path, vault_password: str
+    ) -> None:  # noqa: E501
         vault_path = tmp_path / "auth.vault"
         save_auth_vault(vault_path, _make_vault_payload(), password=vault_password)
         # Temp file should not exist after successful write.
         tmp_file = vault_path.with_name(f".{vault_path.name}.tmp")
         assert not tmp_file.exists()
 
-    def test_save_creates_parent_dirs(self, tmp_path: Path, vault_password: str) -> None:  # noqa: E501
+    def test_save_creates_parent_dirs(
+        self, tmp_path: Path, vault_password: str
+    ) -> None:  # noqa: E501
         vault_path = tmp_path / "sub1" / "sub2" / "auth.vault"
         save_auth_vault(vault_path, _make_vault_payload(), password=vault_password)
         assert vault_path.exists()
 
 
 class TestPasswordResolution:
-    def test_env_htmlquill_vault_password(self, monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: E501
+    def test_env_htmlquill_vault_password(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:  # noqa: E501
         monkeypatch.setenv("HTMLQUILL_VAULT_PASSWORD", "env-password")
         assert get_vault_password() == "env-password"
 

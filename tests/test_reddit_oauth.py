@@ -241,9 +241,7 @@ class TestResolveRedditBearerToken:
             "client_id": "test-client",
         }
         with pytest.raises(FetchError, match="no refresh token"):
-            resolve_reddit_bearer_token(
-                profile, user_agent="test-agent", timeout=30.0
-            )
+            resolve_reddit_bearer_token(profile, user_agent="test-agent", timeout=30.0)
 
     def test_no_tokens_logged_on_error(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
@@ -261,9 +259,7 @@ class TestResolveRedditBearerToken:
             "client_id": "test-client",
         }
         try:
-            resolve_reddit_bearer_token(
-                profile, user_agent="test-agent", timeout=30.0
-            )
+            resolve_reddit_bearer_token(profile, user_agent="test-agent", timeout=30.0)
         except FetchError:
             pass
 

@@ -116,13 +116,9 @@ def _resolve_auth_vault_for_profile(
     ResolvedAuth with no vault changes.
     """
     config_dir = (
-        config_obj.source_path.parent
-        if config_obj.source_path is not None
-        else None
+        config_obj.source_path.parent if config_obj.source_path is not None else None
     )
-    vault_path = resolve_auth_vault_file_from_config(
-        config_obj, config_dir=config_dir
-    )
+    vault_path = resolve_auth_vault_file_from_config(config_obj, config_dir=config_dir)
     if vault_path is None:
         vault_path = Path("~/.config/htmlquill/auth.vault").expanduser()
     if not vault_path.exists():
@@ -163,6 +159,7 @@ def _resolve_auth_vault_for_profile(
     if updated_data is not None:
         try:
             from htmlquill.vault import get_vault_password, save_auth_vault
+
             # Use the same password we just used to decrypt.
             # We re-prompt since we don't cache passwords.
             password = get_vault_password("HtmlQuill vault password: ")

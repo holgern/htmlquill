@@ -187,6 +187,7 @@ def auth_init(
 
 # --- Vault subcommands ---
 
+
 @vault_app.command("path")
 def vault_path(
     auth_vault_file: str | None = typer.Option(None, "--auth-vault-file"),
@@ -194,9 +195,7 @@ def vault_path(
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Print the resolved auth vault file path."""
-    path = _resolved_auth_vault_path(
-        auth_vault_file=auth_vault_file, config=config
-    )
+    path = _resolved_auth_vault_path(auth_vault_file=auth_vault_file, config=config)
     if json_output:
         typer.echo(
             json.dumps(
@@ -221,9 +220,7 @@ def vault_show(
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Show auth vault contents (redacted by default)."""
-    path = _resolved_auth_vault_path(
-        auth_vault_file=auth_vault_file, config=config
-    )
+    path = _resolved_auth_vault_path(auth_vault_file=auth_vault_file, config=config)
     if not path.exists():
         raise click.ClickException(f"auth vault not found: {path}")
 
@@ -231,9 +228,7 @@ def vault_show(
 
     if profile:
         if profile not in vault.profiles:
-            raise click.ClickException(
-                f"profile {profile!r} not found in auth vault"
-            )
+            raise click.ClickException(f"profile {profile!r} not found in auth vault")
         if redacted:
             payload: dict[str, object] = {
                 "auth_vault_path": str(path),
@@ -332,8 +327,7 @@ def _run_local_callback_server(
         elif _OAuthCallbackHandler.captured_error:
             server.server_close()  # type: ignore[unreachable]
             raise click.ClickException(
-                f"OAuth authorization error: "
-                f"{_OAuthCallbackHandler.captured_error}"
+                f"OAuth authorization error: {_OAuthCallbackHandler.captured_error}"
             )
         elapsed += 1.0
 
@@ -462,19 +456,13 @@ def auth_login(
     }
 
     # Prompt for vault password.
-    password = get_vault_password(
-        "HtmlQuill vault password: "
-    )
-    confirm = get_vault_password(
-        "Confirm HtmlQuill vault password: "
-    )
+    password = get_vault_password("HtmlQuill vault password: ")
+    confirm = get_vault_password("Confirm HtmlQuill vault password: ")
     if password != confirm:
         raise click.ClickException("Vault passwords do not match.")
 
     save_auth_vault(vault_path, vault_payload, password=password)
-    typer.echo(
-        f"Saved encrypted Reddit profile 'reddit' to {vault_path}"
-    )
+    typer.echo(f"Saved encrypted Reddit profile 'reddit' to {vault_path}")
 
 
 @app.command("logout")
@@ -554,6 +542,4 @@ def auth_logout(
 
     password = get_vault_password("HtmlQuill vault password: ")
     save_auth_vault(vault_path, vault_payload, password=password)
-    typer.echo(
-        f"Removed Reddit profile 'reddit' from {vault_path}"
-    )
+    typer.echo(f"Removed Reddit profile 'reddit' from {vault_path}")

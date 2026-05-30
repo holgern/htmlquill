@@ -166,9 +166,11 @@ def run_doctor(  # noqa: C901
     config_dir_vault = cfg.source_path.parent if cfg.source_path is not None else None
     if cfg.auth_vault_file:
         from htmlquill.config import _maybe_expand_path
+
         vault_path = _maybe_expand_path(cfg.auth_vault_file, base_dir=config_dir_vault)
     else:
         from htmlquill.vault import default_auth_vault_path
+
         vault_path = default_auth_vault_path(config_dir_vault)
 
     if vault_path and vault_path.exists():
@@ -183,6 +185,7 @@ def run_doctor(  # noqa: C901
         # Check permissions
         if os.name != "nt":
             import stat
+
             try:
                 mode = stat.S_IMODE(vault_path.stat().st_mode)
                 if mode & 0o077:
@@ -216,6 +219,7 @@ def run_doctor(  # noqa: C901
             try:
                 raw_bytes = vault_path.read_bytes()
                 from vaultconfig import crypt  # type: ignore[import-not-found]
+
                 if crypt.is_encrypted(raw_bytes):
                     checks.append(
                         DoctorCheck(
@@ -340,7 +344,7 @@ def run_doctor(  # noqa: C901
                                 "error",
                                 "no bearer token available "
                                 "(set REDDIT_BEARER_TOKEN or "
-                                "run htmlquill auth login reddit)"
+                                "run htmlquill auth login reddit)",
                             )
                         )
                     user_agent_value = context.options.headers.get("User-Agent", "")

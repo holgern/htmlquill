@@ -83,15 +83,13 @@ def fetch_reddit_thread_json(
         )
 
     if not token:
-        raise FetchError(
-            "Reddit API bearer token is empty"
-        )
+        raise FetchError("Reddit API bearer token is empty")
 
     user_agent = options.headers.get("User-Agent", "").strip()
     if not user_agent or user_agent == DEFAULT_USER_AGENT:
         raise FetchError(
             "Reddit API adapter requires a descriptive User-Agent; set "
-            "[sites.\"reddit.com\"].user_agent."
+            '[sites."reddit.com"].user_agent.'
         )
 
     try:

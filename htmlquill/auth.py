@@ -50,6 +50,7 @@ class ResolvedAuth:
     bearer_token: str | None = field(default=None, repr=False)
     token_source: str | None = None  # "vault", "env", None
 
+
 def _env_flag(name: str) -> bool:
     value = os.environ.get(name, "")
     return value.strip().lower() in {"1", "true", "yes", "on"}
@@ -303,9 +304,7 @@ def redacted_auth_dict(resolved: ResolvedAuth) -> dict[str, object]:
 
     cookies_count = len(resolved.cookies or [])
     env_has_token = resolved.token_env and os.environ.get(resolved.token_env)
-    token_present = bool(
-        resolved.bearer_token or env_has_token
-    )
+    token_present = bool(resolved.bearer_token or env_has_token)
     return {
         "profile": resolved.profile_name,
         "cookies": "<redacted>" if cookies_count else None,

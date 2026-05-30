@@ -94,9 +94,7 @@ def exchange_code_for_tokens(
         raise FetchError("Reddit OAuth token exchange returned unexpected payload")
 
     if "error" in payload:
-        raise FetchError(
-            f"Reddit OAuth error: {payload.get('error', 'unknown')}"
-        )
+        raise FetchError(f"Reddit OAuth error: {payload.get('error', 'unknown')}")
 
     return RedditOAuthTokens(
         access_token=str(payload.get("access_token", "")),
