@@ -39,11 +39,15 @@ def _fetch_with_playwright(url: str, *, timeout: float = 20.0) -> str:
         If Playwright is not installed or the page cannot be loaded.
     """
     try:
-        from playwright.sync_api import sync_playwright  # type: ignore[import-untyped]
+        from playwright.sync_api import (  # type: ignore[import-not-found]
+            sync_playwright,
+        )
     except ImportError as exc:
         msg = (
             "Playwright is required for browser-based fetching. "
-            "Install it with: pip install htmlquill[browser] && playwright install chromium"
+            "Install it with: "
+            "pip install htmlquill[browser] "
+            "&& playwright install chromium"
         )
         raise FetchError(msg) from exc
 
@@ -57,7 +61,7 @@ def _fetch_with_playwright(url: str, *, timeout: float = 20.0) -> str:
     except Exception as exc:
         raise FetchError(f"browser fetch failed for {url!r}: {exc}") from exc
 
-    return html
+    return str(html)
 
 
 CHROMIUM_EXECUTABLES = (

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urljoin
 
-from bs4 import NavigableString, Tag
+from bs4 import NavigableString, PageElement, Tag
 
 BLOCK_TAGS = {
     "address",
@@ -66,9 +66,13 @@ class MarkdownRenderer:
 
     def render_children(self, node: Tag) -> str:
         """Render all children of a tag and concatenate."""
-        return "".join(self.render_node(child) for child in node.children)
+        return "".join(
+            self.render_node(child)
+            for child in node.children
+            if isinstance(child, (Tag, NavigableString))
+        )  # noqa: E501
 
-    def render_node(self, node: Tag | NavigableString) -> str:
+    def render_node(self, node: Tag | NavigableString | PageElement) -> str:
         """Dispatch rendering based on node type."""
         if isinstance(node, NavigableString):
             return collapse_ws(str(node))
@@ -78,7 +82,7 @@ class MarkdownRenderer:
         name = node.name.lower()
         handler = getattr(self, f"render_{name}", None)
         if handler is not None:
-            return handler(node)
+            return handler(node)  # type: ignore[no-any-return]
 
         content = self.render_children(node)
         if name in BLOCK_TAGS:
@@ -248,7 +252,7 @@ class MarkdownRenderer:
         if code_tag is not None:
             lang = ""
             # Try to detect language from class like "language-python"
-            classes = code_tag.get("class", [])
+            classes: list[str] | str = code_tag.get("class", []) or []  # type: ignore[arg-type]
             if isinstance(classes, list):
                 for cls in classes:
                     if cls.startswith("language-"):
