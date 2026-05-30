@@ -202,7 +202,8 @@ browser = "chromium"
         assert not (tmp_path / "hello.md").exists()
 
     def test_manual_output_still_writes_exact_path(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         html_file = tmp_path / "test.html"
         manual = tmp_path / "custom.name"
@@ -220,9 +221,7 @@ browser = "chromium"
     ) -> None:
         monkeypatch.chdir(tmp_path)
         html_file = tmp_path / "test.html"
-        html_file.write_text(
-            "<main><h1>Hello World</h1></main>", encoding="utf-8"
-        )
+        html_file.write_text("<main><h1>Hello World</h1></main>", encoding="utf-8")
 
         rc = main([str(html_file), "--filename-only"])
 
@@ -236,9 +235,7 @@ browser = "chromium"
         monkeypatch.chdir(tmp_path)
         (tmp_path / "hello.md").write_text("old", encoding="utf-8")
         html_file = tmp_path / "test.html"
-        html_file.write_text(
-            "<main><h1>Hello</h1></main>", encoding="utf-8"
-        )
+        html_file.write_text("<main><h1>Hello</h1></main>", encoding="utf-8")
 
         rc = main([str(html_file)])
 
@@ -261,9 +258,7 @@ browser = "chromium"
     ) -> None:
         monkeypatch.chdir(tmp_path)
         html_file = tmp_path / "test.html"
-        html_file.write_text(
-            "<main><h1>Title</h1></main>", encoding="utf-8"
-        )
+        html_file.write_text("<main><h1>Title</h1></main>", encoding="utf-8")
 
         rc = main([str(html_file), "--output-dir", str(tmp_path / "notes")])
 
@@ -276,9 +271,7 @@ browser = "chromium"
         monkeypatch.chdir(tmp_path)
         (tmp_path / "hello.md").write_text("old", encoding="utf-8")
         html_file = tmp_path / "test.html"
-        html_file.write_text(
-            "<main><h1>Hello</h1></main>", encoding="utf-8"
-        )
+        html_file.write_text("<main><h1>Hello</h1></main>", encoding="utf-8")
 
         rc = main([str(html_file), "--force"])
 
@@ -513,16 +506,10 @@ user_agent = "linux:htmlquill:v0.2.0 (by /u/test)"
         assert "Hello preview" in result.output
 
 
-
-
 class TestMutualExclusion:
-    def test_stdout_and_output_are_mutually_exclusive(
-        self, tmp_path: Path
-    ) -> None:
+    def test_stdout_and_output_are_mutually_exclusive(self, tmp_path: Path) -> None:
         html_file = tmp_path / "test.html"
-        html_file.write_text(
-            "<main><h1>Hello</h1></main>", encoding="utf-8"
-        )
+        html_file.write_text("<main><h1>Hello</h1></main>", encoding="utf-8")
         rc = main([str(html_file), "--stdout", "-o", str(tmp_path / "x.md")])
         assert rc != 0
 
@@ -530,21 +517,17 @@ class TestMutualExclusion:
         self, tmp_path: Path
     ) -> None:
         html_file = tmp_path / "test.html"
-        html_file.write_text(
-            "<main><h1>Hello</h1></main>", encoding="utf-8"
-        )
+        html_file.write_text("<main><h1>Hello</h1></main>", encoding="utf-8")
         rc = main([str(html_file), "--stdout", "--filename-only"])
         assert rc != 0
 
-    def test_output_dir_and_output_are_mutually_exclusive(
-        self, tmp_path: Path
-    ) -> None:
+    def test_output_dir_and_output_are_mutually_exclusive(self, tmp_path: Path) -> None:
         html_file = tmp_path / "test.html"
-        html_file.write_text(
-            "<main><h1>Hello</h1></main>", encoding="utf-8"
-        )
+        html_file.write_text("<main><h1>Hello</h1></main>", encoding="utf-8")
         rc = main([str(html_file), "--output-dir", "dir", "-o", "x.md"])
         assert rc != 0
+
+
 class TestCLIError:
     def test_nonexistent_file(self) -> None:
         rc = main(["/nonexistent/path.html"])

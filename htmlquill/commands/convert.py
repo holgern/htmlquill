@@ -79,22 +79,14 @@ def convert_command(
         )
 
     if filename_max_length < 8:
-        raise typer.BadParameter(
-            "--filename-max-length must be at least 8"
-        )
+        raise typer.BadParameter("--filename-max-length must be at least 8")
 
     if stdout and filename_only:
-        raise typer.BadParameter(
-            "--stdout and --filename-only cannot be used together"
-        )
+        raise typer.BadParameter("--stdout and --filename-only cannot be used together")
     if stdout and output:
-        raise typer.BadParameter(
-            "--stdout and --output cannot be used together"
-        )
+        raise typer.BadParameter("--stdout and --output cannot be used together")
     if output and output_dir:
-        raise typer.BadParameter(
-            "--output-dir cannot be used with --output"
-        )
+        raise typer.BadParameter("--output-dir cannot be used with --output")
 
     if stdout:
         typer.echo(markdown, nl=False)

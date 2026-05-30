@@ -80,24 +80,25 @@ htmlquill preview example.md
 
 ### Convert options
 
-| Option                     | Description                                                                                |
-| -------------------------- | ------------------------------------------------------------------------------------------ |
-| `SOURCE`                   | URL (`https://...`), HTML file path, or `-` for stdin                                     |
-| `-o`, `--output PATH`      | Manual output file path. Overrides generated filename.                                     |
-| `--stdout`                 | Print converted Markdown to stdout and do not save.                                        |
-| `--filename-only`          | Print resolved output filename and do not save.                                            |
-| `--filename-max-length N`  | Max generated filename stem length, excluding `.md`. Default: `80`.                        |
-| `--output-dir DIR`         | Directory for generated output files. Default: current directory.                          |
-| `--force`                  | Overwrite generated output target instead of adding a numeric suffix.                      |
-| `--timeout`                | HTTP timeout override in seconds                                                           |
-| `--user-agent`             | Custom HTTP User-Agent header                                                              |
-| `--browser`                | Fetching mode override: `auto`, `requests`, `playwright`, `chromium`                       |
-| `--config PATH`            | Use this config file                                                                       |
-| `--no-config`              | Disable config loading                                                                     |
-| `--auth-file PATH`         | Use this auth file                                                                         |
-| `--no-auth`                | Disable auth loading                                                                       |
-| `--profile NAME`           | Force a named auth profile                                                                 |
-| `--print-config`           | Deprecated; use `htmlquill config show URL`                                                |
+| Option                    | Description                                                           |
+| ------------------------- | --------------------------------------------------------------------- |
+| `SOURCE`                  | URL (`https://...`), HTML file path, or `-` for stdin                 |
+| `-o`, `--output PATH`     | Manual output file path. Overrides generated filename.                |
+| `--stdout`                | Print converted Markdown to stdout and do not save.                   |
+| `--filename-only`         | Print resolved output filename and do not save.                       |
+| `--filename-max-length N` | Max generated filename stem length, excluding `.md`. Default: `80`.   |
+| `--output-dir DIR`        | Directory for generated output files. Default: current directory.     |
+| `--force`                 | Overwrite generated output target instead of adding a numeric suffix. |
+| `--timeout`               | HTTP timeout override in seconds                                      |
+| `--user-agent`            | Custom HTTP User-Agent header                                         |
+| `--browser`               | Fetching mode override: `auto`, `requests`, `playwright`, `chromium`  |
+| `--config PATH`           | Use this config file                                                  |
+| `--no-config`             | Disable config loading                                                |
+| `--auth-file PATH`        | Use this auth file                                                    |
+| `--no-auth`               | Disable auth loading                                                  |
+| `--profile NAME`          | Force a named auth profile                                            |
+| `--print-config`          | Deprecated; use `htmlquill config show URL`                           |
+
 ### Browser mode details
 
 - **`auto`** (default): tries `requests` first; on HTTP 403 or detected challenge page, falls back to system Chromium, then Playwright.

@@ -52,9 +52,7 @@ class TestFirstMarkdownHeading:
 class TestFallbackTitleFromSource:
     def test_url_path_stem(self) -> None:
         assert (
-            fallback_title_from_source(
-                "https://example.com/posts/MyArticle.html"
-            )
+            fallback_title_from_source("https://example.com/posts/MyArticle.html")
             == "MyArticle"
         )
 
@@ -130,9 +128,7 @@ class TestMarkdownFilename:
     def test_falls_back_to_url_path(self) -> None:
         md = "No heading here\n"
         assert (
-            markdown_filename(
-                md, source="https://example.com/posts/MyArticle.html"
-            )
+            markdown_filename(md, source="https://example.com/posts/MyArticle.html")
             == "myarticle.md"
         )
 
