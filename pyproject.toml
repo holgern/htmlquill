@@ -28,6 +28,7 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "requests>=2.31",
     "tomli>=2.0; python_version < '3.11'",
+    "typer>=0.12",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

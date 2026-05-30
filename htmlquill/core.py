@@ -91,7 +91,9 @@ def _auth_store_from_input(
     if not auth_path.exists():
         if requested_profile:
             raise FetchError(
-                f"auth profile {requested_profile!r} requested but auth file does not exist: {auth_path}"
+                "auth profile "
+                f"{requested_profile!r} requested but auth file does not exist: "
+                f"{auth_path}"
             )
         return None, auth_path
 
@@ -108,7 +110,8 @@ def resolve_url_context(
     auth: bool | str | Path = True,
     profile: str | None = None,
 ) -> ResolvedFetchContext:
-    """Resolve effective URL fetch options from built-ins/config/env/CLI-like overrides."""
+    """Resolve effective URL fetch options from built-ins/config/env/CLI-like
+    overrides."""
 
     user_agent_override = None
     if headers and "User-Agent" in headers:

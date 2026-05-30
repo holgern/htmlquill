@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -10,10 +11,10 @@ from urllib.parse import urlparse
 
 from htmlquill.challenge import DEFAULT_CHALLENGE_MARKERS
 
-try:
-    import tomllib  # Python 3.11+
-except ModuleNotFoundError:  # pragma: no cover on py311+
-    import tomli as tomllib  # type: ignore[import-not-found,no-redef]
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover on py311+
+    import tomli as tomllib  # type: ignore[import-not-found]
 
 BrowserMode = Literal["auto", "requests", "playwright", "chromium"]
 VALID_BROWSERS: tuple[BrowserMode, ...] = ("auto", "requests", "playwright", "chromium")
@@ -101,9 +102,10 @@ def _parse_browser(value: Any, *, field_name: str) -> BrowserMode:
     if lower not in VALID_BROWSERS:
         valid = ", ".join(VALID_BROWSERS)
         raise ValueError(
-            f"invalid browser value {value!r} for {field_name}; expected one of: {valid}"
+            f"invalid browser value {value!r} for {field_name}; "
+            f"expected one of: {valid}"
         )
-    return lower  # type: ignore[return-value]
+    return lower
 
 
 def _to_float(value: Any, *, field_name: str) -> float:

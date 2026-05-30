@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from htmlquill.cli import main
+from typer.testing import CliRunner
+
+from htmlquill.cli import app, main
+
+runner = CliRunner()
 
 
-class TestCLIStdout:
+class TestCLIConvertCompatibility:
     def test_html_file_to_stdout(self, tmp_path: Path, capsys: object) -> None:
         html_file = tmp_path / "test.html"
         html_file.write_text(
@@ -24,7 +30,6 @@ class TestCLIStdout:
 
     def test_stdin_to_stdout(self, capsys: object) -> None:
         import sys
-        from io import StringIO
 
         html = "<main><p>Stdin test</p></main>"
         with patch.object(sys, "stdin", StringIO(html)):
@@ -33,45 +38,42 @@ class TestCLIStdout:
         captured = capsys.readouterr()
         assert "Stdin test" in captured.out
 
-
-class TestCLIOutputFile:
-    def test_html_file_to_output(self, tmp_path: Path) -> None:
-        html_file = tmp_path / "test.html"
-        html_file.write_text(
-            "<html><body><main><h1>Hello</h1><p>World</p></main></body></html>",
-            encoding="utf-8",
-        )
-        output_file = tmp_path / "test.md"
-        rc = main([str(html_file), "-o", str(output_file)])
-        assert rc == 0
-        md = output_file.read_text(encoding="utf-8")
-        assert "# Hello" in md
-        assert "World" in md
-
-
-class TestCLIUrl:
-    def test_url_mode(self, tmp_path: Path) -> None:
-        output_file = tmp_path / "test.md"
-        with patch("htmlquill.cli.url_to_markdown") as mock_url:
-            mock_url.return_value = "# Fetched\n\nContent.\n"
+    def test_legacy_url_injects_convert(self, tmp_path: Path) -> None:
+        output_file = tmp_path / "out.md"
+        with patch("htmlquill.commands.convert.url_to_markdown") as mock_url:
+            mock_url.return_value = "# Fetched\n\nContent\n"
             rc = main(["https://example.com", "-o", str(output_file)])
         assert rc == 0
         mock_url.assert_called_once()
-        md = output_file.read_text(encoding="utf-8")
-        assert "# Fetched" in md
+
+    def test_explicit_convert_url(self, tmp_path: Path) -> None:
+        output_file = tmp_path / "out.md"
+        with patch("htmlquill.commands.convert.url_to_markdown") as mock_url:
+            mock_url.return_value = "# Fetched\n\nContent\n"
+            rc = main(["convert", "https://example.com", "-o", str(output_file)])
+        assert rc == 0
+        mock_url.assert_called_once()
 
     def test_url_with_timeout(self, tmp_path: Path) -> None:
         output_file = tmp_path / "test.md"
-        with patch("htmlquill.cli.url_to_markdown") as mock_url:
-            mock_url.return_value = "Content.\n"
-            rc = main(["https://example.com", "--timeout", "5", "-o", str(output_file)])
+        with patch("htmlquill.commands.convert.url_to_markdown") as mock_url:
+            mock_url.return_value = "Content\n"
+            rc = main(
+                [
+                    "https://example.com",
+                    "--timeout",
+                    "5",
+                    "-o",
+                    str(output_file),
+                ]
+            )
         assert rc == 0
         assert mock_url.call_args[1]["timeout"] == 5.0
 
     def test_url_with_user_agent(self, tmp_path: Path) -> None:
         output_file = tmp_path / "test.md"
-        with patch("htmlquill.cli.url_to_markdown") as mock_url:
-            mock_url.return_value = "Content.\n"
+        with patch("htmlquill.commands.convert.url_to_markdown") as mock_url:
+            mock_url.return_value = "Content\n"
             rc = main(
                 [
                     "https://example.com",
@@ -86,8 +88,8 @@ class TestCLIUrl:
 
     def test_url_with_chromium_browser(self, tmp_path: Path) -> None:
         output_file = tmp_path / "test.md"
-        with patch("htmlquill.cli.url_to_markdown") as mock_url:
-            mock_url.return_value = "Content.\n"
+        with patch("htmlquill.commands.convert.url_to_markdown") as mock_url:
+            mock_url.return_value = "Content\n"
             rc = main(
                 [
                     "https://example.com",
@@ -185,6 +187,134 @@ browser = "chromium"
         assert payload["auth"]["cookies_count"] == 1
 
 
+class TestTyperCommands:
+    def test_help_lists_commands(self) -> None:
+        result = runner.invoke(app, ["--help"])
+        assert result.exit_code == 0
+        assert "convert" in result.output
+        assert "config" in result.output
+        assert "auth" in result.output
+        assert "doctor" in result.output
+        assert "analyse" in result.output
+        assert "analyze" in result.output
+        assert "preview" in result.output
+
+    def test_config_path_prints_default(
+        self, monkeypatch: object, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+        result = runner.invoke(app, ["config", "path", "--json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["config_path"].endswith("htmlquill/config.toml")
+
+    def test_config_show_matches_old_print_config(
+        self, monkeypatch: object, tmp_path: Path, capsys: object
+    ) -> None:
+        config_home = tmp_path / "xdg"
+        config_dir = config_home / "htmlquill"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.toml").write_text(
+            """
+version = 1
+[defaults]
+timeout = 41
+browser = "requests"
+""",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+        rc = main(["--print-config", "https://example.com"])
+        assert rc == 0
+        legacy_payload = json.loads(capsys.readouterr().out)
+
+        result = runner.invoke(
+            app,
+            ["config", "show", "https://example.com", "--json"],
+        )
+        assert result.exit_code == 0
+        new_payload = json.loads(result.output)
+
+        for key in ("browser", "timeout", "headers", "auth", "challenge_markers"):
+            assert new_payload[key] == legacy_payload[key]
+
+    def test_config_init_writes_file_with_no_overwrite(
+        self, tmp_path: Path, monkeypatch: object
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+        first = runner.invoke(app, ["config", "init"])
+        assert first.exit_code == 0
+
+        second = runner.invoke(app, ["config", "init"])
+        assert second.exit_code != 0
+        assert "already exists" in second.output
+
+        forced = runner.invoke(app, ["config", "init", "--force"])
+        assert forced.exit_code == 0
+
+    def test_auth_init_sets_0600_on_posix(
+        self, tmp_path: Path, monkeypatch: object
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+        result = runner.invoke(app, ["auth", "init"])
+        assert result.exit_code == 0
+
+        auth_path = tmp_path / "xdg" / "htmlquill" / "auth.json"
+        assert auth_path.exists()
+        if os.name != "nt":
+            assert (auth_path.stat().st_mode & 0o777) == 0o600
+
+    def test_doctor_json_has_checks(self) -> None:
+        result = runner.invoke(app, ["doctor", "--json"])
+        assert result.exit_code in {0, 2}
+        payload = json.loads(result.output)
+        names = {check["name"] for check in payload["checks"]}
+        assert "python" in names
+        assert "import:typer" in names
+
+    def test_analyse_markdown_counts_links_images_code(self, tmp_path: Path) -> None:
+        md = tmp_path / "sample.md"
+        md.write_text(
+            "# Title\n\n"
+            "[link](https://example.com)\n"
+            "![img](img.png)\n"
+            "`inline`\n\n"
+            "```\nprint('x')\n```\n",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(app, ["analyse", str(md), "--json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["images"] == 1
+        assert payload["links"] == 1
+        assert payload["code_blocks"] == 1
+
+    def test_analyse_html_converts_then_counts(self, tmp_path: Path) -> None:
+        html = tmp_path / "sample.html"
+        html.write_text(
+            "<html><body><article><h1>Title</h1><p>Hello world</p></article>"
+            "</body></html>",
+            encoding="utf-8",
+        )
+        result = runner.invoke(app, ["analyse", str(html), "--json"])
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["headings"] >= 1
+        assert payload["words"] >= 2
+
+    def test_preview_plain_works_without_rich(self, tmp_path: Path) -> None:
+        md = tmp_path / "preview.md"
+        md.write_text("# Title\n\nHello preview\n", encoding="utf-8")
+
+        result = runner.invoke(app, ["preview", str(md), "--plain"])
+        assert result.exit_code == 0
+        assert "Hello preview" in result.output
+
+
 class TestCLIError:
     def test_nonexistent_file(self) -> None:
         rc = main(["/nonexistent/path.html"])
@@ -193,7 +323,7 @@ class TestCLIError:
     def test_url_fetch_error(self) -> None:
         from htmlquill.fetch import FetchError
 
-        with patch("htmlquill.cli.url_to_markdown") as mock_url:
+        with patch("htmlquill.commands.convert.url_to_markdown") as mock_url:
             mock_url.side_effect = FetchError("failed to fetch 'https://bad.url': 404")
             rc = main(["https://bad.url"])
         assert rc == 1

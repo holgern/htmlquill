@@ -1,153 +1,253 @@
-"""Command-line interface for htmlquill."""
+"""Typer-based command-line interface for htmlquill."""
 
 from __future__ import annotations
 
-import argparse
-import json
 import sys
-from pathlib import Path
-from urllib.parse import urlparse
+from collections.abc import Sequence
 
-from htmlquill.core import (
-    html_to_markdown,
-    resolve_url_context,
-    resolved_context_to_dict,
-    url_to_markdown,
+import click
+import typer
+
+from htmlquill.commands.analyse import analyse_command
+from htmlquill.commands.auth import app as auth_app
+from htmlquill.commands.config import app as config_app
+from htmlquill.commands.convert import convert_command
+from htmlquill.commands.doctor import doctor_command
+from htmlquill.commands.preview import preview_command
+from htmlquill.config import BrowserMode
+
+app = typer.Typer(
+    name="htmlquill",
+    help="Convert HTML or URLs to Markdown.",
+    no_args_is_help=True,
 )
 
+KNOWN_COMMANDS = {
+    "convert",
+    "config",
+    "auth",
+    "doctor",
+    "analyse",
+    "analyze",
+    "preview",
+}
 
-def is_url(value: str) -> bool:
-    """Return ``True`` if *value* looks like an HTTP(S) URL."""
 
-    parsed = urlparse(value)
-    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
-
-
-def build_parser() -> argparse.ArgumentParser:
-    """Build and return the argument parser."""
-
-    parser = argparse.ArgumentParser(
-        prog="htmlquill",
-        description="Convert HTML or a URL to Markdown.",
-    )
-    parser.add_argument(
-        "source",
-        help="URL, HTML file path, or '-' for stdin",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        help="Markdown output path. Defaults to stdout.",
-    )
-    parser.add_argument(
-        "--timeout",
-        type=float,
-        default=None,
-        help="HTTP timeout in seconds (resolved default: 20)",
-    )
-    parser.add_argument(
-        "--user-agent",
-        default=None,
-        help="Custom HTTP User-Agent header",
-    )
-    parser.add_argument(
-        "--browser",
-        choices=["auto", "requests", "playwright", "chromium"],
-        default=None,
-        help="Fetching mode override: auto, requests, playwright, or chromium",
-    )
-    parser.add_argument(
+@app.command("convert")
+def convert(
+    source: str = typer.Argument(..., help="URL, HTML file path, or '-' for stdin"),
+    output: str | None = typer.Option(None, "-o", "--output"),
+    timeout: float | None = typer.Option(None, "--timeout"),
+    user_agent: str | None = typer.Option(None, "--user-agent"),
+    browser: BrowserMode | None = typer.Option(None, "--browser"),
+    config: str | None = typer.Option(
+        None,
         "--config",
         help="Load this config.toml instead of the default search path",
-    )
-    parser.add_argument(
-        "--no-config",
-        action="store_true",
-        help="Ignore config files",
-    )
-    parser.add_argument(
+    ),
+    no_config: bool = typer.Option(False, "--no-config", help="Ignore config files"),
+    auth_file: str | None = typer.Option(
+        None,
         "--auth-file",
         help="Load this auth.json instead of the configured/default path",
-    )
-    parser.add_argument(
-        "--no-auth",
-        action="store_true",
-        help="Disable auth loading",
-    )
-    parser.add_argument(
+    ),
+    no_auth: bool = typer.Option(False, "--no-auth", help="Disable auth loading"),
+    profile: str | None = typer.Option(
+        None,
         "--profile",
         help="Force a named auth/site profile for this fetch",
-    )
-    parser.add_argument(
+    ),
+    print_config: bool = typer.Option(
+        False,
         "--print-config",
-        action="store_true",
-        help="Print resolved effective config for the URL and exit",
+        help="Deprecated; use `htmlquill config show URL`.",
+    ),
+) -> None:
+    convert_command(
+        source,
+        output,
+        timeout,
+        user_agent,
+        browser,
+        config,
+        no_config,
+        auth_file,
+        no_auth,
+        profile,
+        print_config,
     )
-    return parser
+
+
+@app.command("doctor")
+def doctor(
+    url: str | None = typer.Option(
+        None,
+        "--url",
+        help="URL to inspect (no fetch by default)",
+    ),
+    profile: str | None = typer.Option(None, "--profile"),
+    config: str | None = typer.Option(None, "--config"),
+    auth_file: str | None = typer.Option(None, "--auth-file"),
+    timeout: float | None = typer.Option(None, "--timeout"),
+    user_agent: str | None = typer.Option(None, "--user-agent"),
+    browser: BrowserMode | None = typer.Option(None, "--browser"),
+    strict_auth_permissions: bool = typer.Option(
+        False,
+        "--strict-auth-permissions",
+        help="Treat auth file permission issues as errors.",
+    ),
+    fetch: bool = typer.Option(
+        False,
+        "--fetch",
+        help="Run a network fetch smoke test when --url is provided.",
+    ),
+    strict: bool = typer.Option(
+        False,
+        "--strict",
+        help="Return exit code 2 if warnings are present.",
+    ),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    exit_code = doctor_command(
+        url=url,
+        profile=profile,
+        config=config,
+        auth_file=auth_file,
+        timeout=timeout,
+        user_agent=user_agent,
+        browser=browser,
+        strict_auth_permissions=strict_auth_permissions,
+        fetch=fetch,
+        strict=strict,
+        json_output=json_output,
+    )
+    if exit_code != 0:
+        raise typer.Exit(code=exit_code)
+
+
+@app.command("analyse")
+def analyse(
+    source: str = typer.Argument(..., help="URL, HTML/Markdown file, or '-'"),
+    input_mode: str = typer.Option("auto", "--input", help="Input interpretation."),
+    timeout: float | None = typer.Option(None, "--timeout"),
+    user_agent: str | None = typer.Option(None, "--user-agent"),
+    browser: BrowserMode | None = typer.Option(None, "--browser"),
+    config: str | None = typer.Option(None, "--config"),
+    no_config: bool = typer.Option(False, "--no-config"),
+    auth_file: str | None = typer.Option(None, "--auth-file"),
+    no_auth: bool = typer.Option(False, "--no-auth"),
+    profile: str | None = typer.Option(None, "--profile"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    analyse_command(
+        source=source,
+        input_mode=input_mode,  # type: ignore[arg-type]
+        timeout=timeout,
+        user_agent=user_agent,
+        browser=browser,
+        config=config,
+        no_config=no_config,
+        auth_file=auth_file,
+        no_auth=no_auth,
+        profile=profile,
+        json_output=json_output,
+    )
+
+
+@app.command("analyze")
+def analyze(
+    source: str = typer.Argument(..., help="URL, HTML/Markdown file, or '-'"),
+    input_mode: str = typer.Option("auto", "--input", help="Input interpretation."),
+    timeout: float | None = typer.Option(None, "--timeout"),
+    user_agent: str | None = typer.Option(None, "--user-agent"),
+    browser: BrowserMode | None = typer.Option(None, "--browser"),
+    config: str | None = typer.Option(None, "--config"),
+    no_config: bool = typer.Option(False, "--no-config"),
+    auth_file: str | None = typer.Option(None, "--auth-file"),
+    no_auth: bool = typer.Option(False, "--no-auth"),
+    profile: str | None = typer.Option(None, "--profile"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    analyse_command(
+        source=source,
+        input_mode=input_mode,  # type: ignore[arg-type]
+        timeout=timeout,
+        user_agent=user_agent,
+        browser=browser,
+        config=config,
+        no_config=no_config,
+        auth_file=auth_file,
+        no_auth=no_auth,
+        profile=profile,
+        json_output=json_output,
+    )
+
+
+@app.command("preview")
+def preview(
+    source: str = typer.Argument(..., help="URL, HTML/Markdown file, or '-'"),
+    max_lines: int | None = typer.Option(None, "--max-lines"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_summary: bool = typer.Option(False, "--json-summary"),
+    timeout: float | None = typer.Option(None, "--timeout"),
+    user_agent: str | None = typer.Option(None, "--user-agent"),
+    browser: BrowserMode | None = typer.Option(None, "--browser"),
+    config: str | None = typer.Option(None, "--config"),
+    no_config: bool = typer.Option(False, "--no-config"),
+    auth_file: str | None = typer.Option(None, "--auth-file"),
+    no_auth: bool = typer.Option(False, "--no-auth"),
+    profile: str | None = typer.Option(None, "--profile"),
+) -> None:
+    preview_command(
+        source=source,
+        max_lines=max_lines,
+        plain=plain,
+        json_summary=json_summary,
+        timeout=timeout,
+        user_agent=user_agent,
+        browser=browser,
+        config=config,
+        no_config=no_config,
+        auth_file=auth_file,
+        no_auth=no_auth,
+        profile=profile,
+    )
+
+
+app.add_typer(config_app, name="config")
+app.add_typer(auth_app, name="auth")
+
+
+def _normalize_argv(argv: Sequence[str]) -> list[str]:
+    args = list(argv)
+    if not args:
+        return args
+
+    if args[0] in KNOWN_COMMANDS:
+        return args
+
+    if args[0] in {"-h", "--help"}:
+        return args
+
+    return ["convert", *args]
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Entry point for the htmlquill CLI.
-
-    Returns
-    -------
-    int
-        Exit code: 0 on success, 1 on error.
-    """
-
-    parser = build_parser()
-    args = parser.parse_args(argv)
+    raw_args = sys.argv[1:] if argv is None else argv
+    args = _normalize_argv(raw_args)
 
     try:
-        if args.source == "-":
-            if args.print_config:
-                raise ValueError("--print-config requires a URL source")
-            markdown = html_to_markdown(sys.stdin.read())
-        elif is_url(args.source):
-            headers = {"User-Agent": args.user_agent} if args.user_agent else None
-            config_input: bool | str = (
-                False if args.no_config else (args.config or True)
-            )
-            auth_input: bool | str = False if args.no_auth else (args.auth_file or True)
-
-            if args.print_config:
-                context = resolve_url_context(
-                    args.source,
-                    timeout=args.timeout,
-                    headers=headers,
-                    browser=args.browser,
-                    config=config_input,
-                    auth=auth_input,
-                    profile=args.profile,
-                )
-                payload = resolved_context_to_dict(context, headers=headers)
-                sys.stdout.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-                return 0
-
-            markdown = url_to_markdown(
-                args.source,
-                timeout=args.timeout,
-                headers=headers,
-                browser=args.browser,
-                config=config_input,
-                auth=auth_input,
-                profile=args.profile,
-            )
-        else:
-            if args.print_config:
-                raise ValueError("--print-config requires a URL source")
-            path = Path(args.source)
-            markdown = html_to_markdown(
-                path.read_text(encoding="utf-8"), base_url=path.as_uri()
-            )
-
-        if args.output:
-            Path(args.output).write_text(markdown, encoding="utf-8")
-        else:
-            sys.stdout.write(markdown)
+        command = typer.main.get_command(app)
+        command.main(args=args, prog_name="htmlquill", standalone_mode=False)
         return 0
-    except Exception as exc:
-        print(f"htmlquill: error: {exc}", file=sys.stderr)
+    except click.ClickException as exc:
+        exc.show()
+        return int(exc.exit_code)
+    except typer.Exit as exc:
+        code = exc.exit_code
+        return int(code if code is not None else 0)
+    except Exception as exc:  # pragma: no cover - defensive
+        typer.echo(f"htmlquill: error: {exc}", err=True)
         return 1
 
 

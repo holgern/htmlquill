@@ -18,37 +18,45 @@ playwright install chromium
 ## CLI usage
 
 ```bash
-# Convert a URL
+# Backward-compatible shorthand
 htmlquill https://example.com -o example.md
 
-# Convert a local HTML file
-htmlquill page.html -o page.md
+# Explicit command
+htmlquill convert https://example.com -o example.md
 
-# Read from stdin
-cat page.html | htmlquill - > page.md
+# Inspect effective config
+htmlquill config show https://example.com
 
-# Write to stdout (default when -o is omitted)
-htmlquill page.html
+# Initialize config/auth files
+htmlquill config init
+htmlquill auth init
+
+# Diagnose local setup
+htmlquill doctor
+
+# Count generated Markdown structure
+htmlquill analyse example.md
+
+# Preview Markdown in the terminal
+htmlquill preview example.md
 ```
 
-### Config and auth examples
+`htmlquill SOURCE` is retained as shorthand for `htmlquill convert SOURCE`.
 
-```bash
-# Inspect effective config for a URL (with redacted auth details)
-htmlquill --print-config https://example.com
+### Command overview
 
-# Use an explicit config file
-htmlquill --config ./htmlquill.toml https://example.com -o page.md
+- `htmlquill convert SOURCE [options]`
+- `htmlquill config path|show|init|validate`
+- `htmlquill auth path|show|init`
+- `htmlquill doctor [--json] [--strict]`
+- `htmlquill analyse SOURCE` (alias: `htmlquill analyze SOURCE`)
+- `htmlquill preview SOURCE`
 
-# Use a browser profile for a protected site
-htmlquill --browser chromium --profile medium https://medium.com/... -o article.md
-```
-
-### CLI options
+### Convert options
 
 | Option             | Description                                                          |
 | ------------------ | -------------------------------------------------------------------- |
-| `SOURCE`           | URL (`https://...`), HTML file path, or `-` for stdin                |
+| `SOURCE`           | URL (`https://...`), HTML file path, or `-` for stdin               |
 | `-o`, `--output`   | Output file path (default: stdout)                                   |
 | `--timeout`        | HTTP timeout override in seconds                                     |
 | `--user-agent`     | Custom HTTP User-Agent header                                        |
@@ -58,8 +66,7 @@ htmlquill --browser chromium --profile medium https://medium.com/... -o article.
 | `--auth-file PATH` | Use this auth file                                                   |
 | `--no-auth`        | Disable auth loading                                                 |
 | `--profile NAME`   | Force a named auth profile                                           |
-| `--print-config`   | Print resolved effective URL config and exit                         |
-
+| `--print-config`   | Deprecated; use `htmlquill config show URL`                          |
 ### Browser mode details
 
 - **`auto`** (default): tries `requests` first; on HTTP 403 or detected challenge page, falls back to system Chromium, then Playwright.

@@ -11,8 +11,7 @@ from pathlib import Path
 
 from htmlquill.core import html_to_markdown
 
-ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = ROOT / "test.md"
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "medium_export.md"
 
 
 def _fixture_text() -> str:
@@ -122,7 +121,10 @@ class TestCodeBlockReconstruction:
     """Verify code block reconstruction handles Medium-style line wrappers."""
 
     def test_pre_with_div_lines(self) -> None:
-        html = "<pre><code><div>line 1</div><div>line 2</div><div>line 3</div></code></pre>"
+        html = (
+            "<pre><code><div>line 1</div><div>line 2</div><div>line 3</div>"
+            "</code></pre>"
+        )
         md = html_to_markdown(html)
         assert "line 1\nline 2\nline 3" in md
 
