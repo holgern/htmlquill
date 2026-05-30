@@ -239,6 +239,104 @@ browser = "requests"
         for key in ("browser", "timeout", "headers", "auth", "challenge_markers"):
             assert new_payload[key] == legacy_payload[key]
 
+    def test_config_show_reddit_url_includes_adapter(
+        self, monkeypatch: object, tmp_path: Path
+    ) -> None:
+        config_home = tmp_path / "xdg"
+        config_dir = config_home / "htmlquill"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.toml").write_text(
+            """
+version = 1
+[sites."reddit.com"]
+adapter = "reddit_api"
+auth = "reddit"
+user_agent = "linux:htmlquill:v0.2.0 (by /u/test)"
+""",
+            encoding="utf-8",
+        )
+        auth_path = config_dir / "auth.json"
+        auth_path.write_text(
+            """
+{
+  "version": 1,
+  "profiles": {
+    "reddit": {"kind": "bearer_token", "token_env": "REDDIT_BEARER_TOKEN"}
+  }
+}
+""",
+            encoding="utf-8",
+        )
+        auth_path.chmod(0o600)
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+        result = runner.invoke(
+            app,
+            [
+                "config",
+                "show",
+                "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/my_title/",
+                "--json",
+            ],
+        )
+        assert result.exit_code == 0
+        payload = json.loads(result.output)
+        assert payload["adapter"] == "reddit_api"
+
+    def test_convert_reddit_uses_adapter_when_configured(
+        self, monkeypatch: object, tmp_path: Path
+    ) -> None:
+        config_home = tmp_path / "xdg"
+        config_dir = config_home / "htmlquill"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.toml").write_text(
+            """
+version = 1
+[sites."reddit.com"]
+adapter = "reddit_api"
+auth = "reddit"
+user_agent = "linux:htmlquill:v0.2.0 (by /u/test)"
+""",
+            encoding="utf-8",
+        )
+        auth_path = config_dir / "auth.json"
+        auth_path.write_text(
+            """
+{
+  "version": 1,
+  "profiles": {
+    "reddit": {"kind": "bearer_token", "token_env": "REDDIT_BEARER_TOKEN"}
+  }
+}
+""",
+            encoding="utf-8",
+        )
+        auth_path.chmod(0o600)
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+        monkeypatch.setenv("REDDIT_BEARER_TOKEN", "token-value")
+
+        with patch("htmlquill.adapters.reddit.fetch_reddit_thread_json") as mock_fetch:
+            with patch(
+                "htmlquill.adapters.reddit.reddit_thread_json_to_markdown"
+            ) as mock_render:
+                mock_fetch.return_value = [
+                    {"data": {"children": [{"data": {"title": "x"}}]}},
+                    {"data": {"children": []}},
+                ]
+                mock_render.return_value = "# Title\n\nBody\n"
+                result = runner.invoke(
+                    app,
+                    [
+                        "convert",
+                        "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/my_title/",
+                    ],
+                )
+
+        assert result.exit_code == 0
+        assert "# Title" in result.output
+        mock_fetch.assert_called_once()
+        mock_render.assert_called_once()
+
     def test_config_init_writes_file_with_no_overwrite(
         self, tmp_path: Path, monkeypatch: object
     ) -> None:
@@ -249,7 +347,7 @@ browser = "requests"
 
         second = runner.invoke(app, ["config", "init"])
         assert second.exit_code != 0
-        assert "already exists" in second.output
+        assert "already exists" in (second.output or str(second.exception))
 
         forced = runner.invoke(app, ["config", "init", "--force"])
         assert forced.exit_code == 0

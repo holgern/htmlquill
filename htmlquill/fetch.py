@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import requests
 from requests.cookies import RequestsCookieJar, create_cookie
@@ -204,7 +205,28 @@ def _assert_not_challenge(
     try:
         assert_not_challenge_page(html, url=url, markers=challenge_markers)
     except ChallengePageError as exc:
+        hint = _challenge_error_hint(url, html)
+        if hint:
+            raise FetchError(f"{exc} ({hint})") from exc
         raise FetchError(str(exc)) from exc
+
+
+def _challenge_error_hint(url: str, html: str) -> str | None:
+    host = (urlparse(url).hostname or "").lower()
+    lower = html.lower()
+    if host in {"reddit.com", "www.reddit.com", "old.reddit.com", "m.reddit.com"}:
+        if (
+            "blocked by network security" in lower
+            or "file a ticket below" in lower
+            or "please try to login with your reddit account" in lower
+        ):
+            return (
+                "received a Reddit network-security block page instead of content "
+                "HTML; "
+                "Reddit blocks unidentified clients/crawlers, so use a configured "
+                "Reddit API/OAuth adapter or a logged-in browser profile"
+            )
+    return None
 
 
 def _try_browser_fallbacks(

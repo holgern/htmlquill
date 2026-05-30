@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import platform
 import sys
 from dataclasses import asdict, dataclass
 
+from htmlquill.adapters.reddit import fetch_reddit_thread_json, parse_reddit_url
 from htmlquill.auth import load_auth, resolve_auth_path
 from htmlquill.config import (
     BrowserMode,
@@ -15,7 +17,7 @@ from htmlquill.config import (
     resolve_config_path,
 )
 from htmlquill.core import resolve_url_context
-from htmlquill.fetch import _find_chromium, fetch_html
+from htmlquill.fetch import DEFAULT_USER_AGENT, FetchError, _find_chromium, fetch_html
 
 
 @dataclass(frozen=True)
@@ -162,32 +164,110 @@ def run_doctor(
                     "url_context",
                     "ok",
                     (
+                        f"adapter={context.options.adapter}, "
                         f"browser={context.options.browser}, "
                         f"timeout={context.options.timeout}, "
                         f"auth_profile={context.auth.profile_name}"
                     ),
                 )
             )
+            reddit_ref = parse_reddit_url(url)
+            if reddit_ref is not None:
+                checks.append(
+                    DoctorCheck(
+                        "reddit:adapter",
+                        "info",
+                        f"adapter={context.options.adapter}",
+                    )
+                )
+                if context.options.adapter == "html":
+                    checks.append(
+                        DoctorCheck(
+                            "reddit:mode",
+                            "warn",
+                            "reddit.com HTML fetching is unreliable and may be "
+                            "blocked; "
+                            'prefer [sites."reddit.com"].adapter="reddit_api"',
+                        )
+                    )
+                else:
+                    if not context.auth.profile_name:
+                        checks.append(
+                            DoctorCheck(
+                                "reddit:auth_profile",
+                                "error",
+                                "Reddit API adapter requires an auth profile",
+                            )
+                        )
+                    if not context.auth.token_env:
+                        checks.append(
+                            DoctorCheck(
+                                "reddit:token_env",
+                                "error",
+                                "Reddit API adapter requires auth profile token_env",
+                            )
+                        )
+                    else:
+                        token_present = bool(
+                            os.environ.get(context.auth.token_env, "").strip()
+                        )
+                        checks.append(
+                            DoctorCheck(
+                                "reddit:token",
+                                "ok" if token_present else "error",
+                                f"env {context.auth.token_env} "
+                                f"{'is set' if token_present else 'is missing'}",
+                            )
+                        )
+                    user_agent_value = context.options.headers.get("User-Agent", "")
+                    descriptive_user_agent = bool(
+                        user_agent_value and user_agent_value != DEFAULT_USER_AGENT
+                    )
+                    checks.append(
+                        DoctorCheck(
+                            "reddit:user_agent",
+                            "ok" if descriptive_user_agent else "error",
+                            "descriptive User-Agent configured"
+                            if descriptive_user_agent
+                            else 'set [sites."reddit.com"].user_agent to a '
+                            "descriptive value",
+                        )
+                    )
+
             if fetch:
                 try:
-                    merged_headers = dict(context.options.headers)
-                    if headers:
-                        merged_headers.update(headers)
-                    fetch_html(
-                        url,
-                        timeout=context.options.timeout,
-                        headers=merged_headers,
-                        browser=context.options.browser,
-                        cookies=context.auth.cookies,
-                        playwright_storage_state=context.auth.playwright_storage_state,
-                        chromium_user_data_dir=context.auth.chromium_user_data_dir,
-                        challenge_markers=list(context.options.challenge_markers),
-                        fallback_on_challenge=context.options.fallback_on_challenge,
-                        fail_on_challenge=context.options.fail_on_challenge,
-                    )
+                    if (
+                        context.options.adapter == "reddit_api"
+                        and reddit_ref is not None
+                    ):
+                        fetch_reddit_thread_json(
+                            url,
+                            options=context.options,
+                            auth=context.auth,
+                        )
+                    else:
+                        merged_headers = dict(context.options.headers)
+                        if headers:
+                            merged_headers.update(headers)
+                        fetch_html(
+                            url,
+                            timeout=context.options.timeout,
+                            headers=merged_headers,
+                            browser=context.options.browser,
+                            cookies=context.auth.cookies,
+                            playwright_storage_state=context.auth.playwright_storage_state,
+                            chromium_user_data_dir=context.auth.chromium_user_data_dir,
+                            challenge_markers=list(context.options.challenge_markers),
+                            fallback_on_challenge=context.options.fallback_on_challenge,
+                            fail_on_challenge=context.options.fail_on_challenge,
+                        )
                     checks.append(
                         DoctorCheck("fetch", "ok", "fetch smoke test succeeded")
                     )
+                except FetchError as exc:
+                    message = str(exc)
+                    status = "warn" if "rate limited; reset=" in message else "error"
+                    checks.append(DoctorCheck("fetch", status, message))
                 except Exception as exc:
                     checks.append(DoctorCheck("fetch", "error", str(exc)))
         except Exception as exc:

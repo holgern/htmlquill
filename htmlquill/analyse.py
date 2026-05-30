@@ -36,9 +36,7 @@ _LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\([^)]+\)")
 _INLINE_CODE_RE = re.compile(r"(?<!`)`[^`\n]+`(?!`)")
 _LIST_ITEM_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S", re.MULTILINE)
 _BLOCKQUOTE_RE = re.compile(r"^\s*>\s?", re.MULTILINE)
-_TABLE_SEPARATOR_RE = re.compile(
-    r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$"
-)
+_TABLE_SEPARATOR_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$")
 
 
 def _strip_fenced_code(markdown: str) -> str:
@@ -56,9 +54,7 @@ def count_markdown_stats(markdown: str) -> MarkdownStats:
     without_blocks = _strip_fenced_code(markdown)
     words = len(re.findall(r"\b[\w'-]+\b", without_blocks))
 
-    tables = sum(
-        1 for i in range(1, len(lines)) if _TABLE_SEPARATOR_RE.match(lines[i])
-    )
+    tables = sum(1 for i in range(1, len(lines)) if _TABLE_SEPARATOR_RE.match(lines[i]))
 
     return MarkdownStats(
         lines=len(lines),

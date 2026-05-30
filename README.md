@@ -56,7 +56,7 @@ htmlquill preview example.md
 
 | Option             | Description                                                          |
 | ------------------ | -------------------------------------------------------------------- |
-| `SOURCE`           | URL (`https://...`), HTML file path, or `-` for stdin               |
+| `SOURCE`           | URL (`https://...`), HTML file path, or `-` for stdin                |
 | `-o`, `--output`   | Output file path (default: stdout)                                   |
 | `--timeout`        | HTTP timeout override in seconds                                     |
 | `--user-agent`     | Custom HTTP User-Agent header                                        |
@@ -67,6 +67,7 @@ htmlquill preview example.md
 | `--no-auth`        | Disable auth loading                                                 |
 | `--profile NAME`   | Force a named auth profile                                           |
 | `--print-config`   | Deprecated; use `htmlquill config show URL`                          |
+
 ### Browser mode details
 
 - **`auto`** (default): tries `requests` first; on HTTP 403 or detected challenge page, falls back to system Chromium, then Playwright.
@@ -89,6 +90,7 @@ Example `config.toml`:
 version = 1
 
 [defaults]
+adapter = "html"
 browser = "auto"
 timeout = 30.0
 user_agent = "Mozilla/5.0 htmlquill/0.1"
@@ -102,12 +104,22 @@ auth_file = "~/.config/htmlquill/auth.json"
 markers = [
   "Performing security verification",
   "verifies you are not a bot",
+  "You've been blocked by network security",
+  "blocked by network security",
+  "If you think you've been blocked by mistake, file a ticket",
+  "Please try to login with your Reddit account",
 ]
 
 [sites."medium.com"]
 browser = "chromium"
 timeout = 60.0
 auth = "medium"
+
+[sites."reddit.com"]
+adapter = "reddit_api"
+auth = "reddit"
+timeout = 30.0
+user_agent = "linux:htmlquill:v0.2.0 (by /u/YOUR_REDDIT_USERNAME)"
 ```
 
 ## Auth file
@@ -125,6 +137,10 @@ Example `auth.json`:
 {
   "version": 1,
   "profiles": {
+    "reddit": {
+      "kind": "bearer_token",
+      "token_env": "REDDIT_BEARER_TOKEN"
+    },
     "medium": {
       "kind": "browser_state",
       "playwright_storage_state": "~/.config/htmlquill/auth/medium.storage-state.json",
@@ -140,6 +156,12 @@ Example `auth.json`:
 - Recommended permissions: `chmod 600 ~/.config/htmlquill/auth.json`.
 - Do not commit auth files, storage-state files, or browser profile dirs.
 - Prefer environment variables for tokens.
+
+## Reddit notes
+
+- `reddit.com` HTML fetching can be blocked by Reddit network-security pages.
+- Prefer `[sites."reddit.com"].adapter = "reddit_api"` with OAuth token env + descriptive User-Agent.
+- For interactive best-effort use, a logged-in Chromium profile can still be used, but it is not a durable backend strategy.
 
 ## Library usage
 

@@ -55,6 +55,54 @@ class TestFetchHtmlRequestsMode:
         with pytest.raises(FetchError, match="security verification page"):
             fetch_html("https://example.com", browser="requests")
 
+    def test_requests_reddit_wait_verification_page_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from unittest.mock import MagicMock
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            "<html><head><title>Reddit - Please wait for verification</title></head>"
+            '<body><form><input name="js_challenge" value="1"></form></body></html>'
+        )
+        mock_response.headers = {"content-type": "text/html"}
+        mock_response.raise_for_status = MagicMock()
+
+        monkeypatch.setattr("requests.get", lambda *a, **kw: mock_response)
+
+        with pytest.raises(FetchError, match="security verification page"):
+            fetch_html("https://www.reddit.com/r/test/comments/x/y", browser="requests")
+
+    def test_requests_reddit_network_security_page_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from unittest.mock import MagicMock
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """
+        <html>
+          <body>
+            <h1>You've been blocked by network security.</h1>
+            <p>
+              If you think you've been blocked by mistake, file a ticket below
+              and we'll look into it.
+            </p>
+          </body>
+        </html>
+        """
+        mock_response.headers = {"content-type": "text/html"}
+        mock_response.raise_for_status = MagicMock()
+
+        monkeypatch.setattr("requests.get", lambda *a, **kw: mock_response)
+
+        with pytest.raises(FetchError, match="Reddit network-security block page"):
+            fetch_html(
+                "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/example/",
+                browser="requests",
+            )
+
 
 class TestFetchHtmlAutoMode:
     def test_auto_requests_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from htmlquill.challenge import DEFAULT_CHALLENGE_MARKERS
 from htmlquill.config import CliOverrides, load_config, resolve_options
 
 
@@ -127,3 +128,104 @@ browser = "netscape"
 
     with pytest.raises(ValueError, match="invalid browser value"):
         load_config(config_path)
+
+
+def test_global_challenge_markers_extend_defaults(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+version = 1
+[challenge]
+markers = ["custom challenge marker"]
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_config(config_path)
+    opts = resolve_options("https://example.com", cfg, CliOverrides())
+
+    assert "custom challenge marker" in opts.challenge_markers
+    for marker in DEFAULT_CHALLENGE_MARKERS:
+        assert marker in opts.challenge_markers
+
+
+def test_site_challenge_markers_extend_global_and_defaults(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+version = 1
+[challenge]
+markers = ["global marker"]
+
+[sites."example.com"]
+challenge_markers = ["site marker"]
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_config(config_path)
+    opts = resolve_options("https://example.com/path", cfg, CliOverrides())
+
+    assert "site marker" in opts.challenge_markers
+    assert "global marker" in opts.challenge_markers
+    for marker in DEFAULT_CHALLENGE_MARKERS:
+        assert marker in opts.challenge_markers
+
+
+def test_reddit_adapter_is_parsed_and_resolved(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+version = 1
+[defaults]
+adapter = "html"
+
+[sites."reddit.com"]
+adapter = "reddit_api"
+browser = "requests"
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_config(config_path)
+    opts = resolve_options(
+        "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/title/",
+        cfg,
+        CliOverrides(),
+    )
+    assert opts.adapter == "reddit_api"
+
+
+def test_invalid_adapter_value_raises_clean_error(tmp_path: Path) -> None:
+    config_path = tmp_path / "bad.toml"
+    config_path.write_text(
+        """
+version = 1
+[sites."reddit.com"]
+adapter = "bad_adapter"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid adapter value"):
+        load_config(config_path)
+
+
+def test_reddit_adapter_hostname_suffix_match(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+version = 1
+[sites."reddit.com"]
+adapter = "reddit_api"
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_config(config_path)
+    opts = resolve_options(
+        "https://www.reddit.com/r/ObsidianMD/comments/1q2b6fp/title/",
+        cfg,
+        CliOverrides(),
+    )
+    assert opts.adapter == "reddit_api"

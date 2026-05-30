@@ -18,6 +18,7 @@ app = typer.Typer(help="Inspect and manage htmlquill configuration.")
 _CONFIG_TEMPLATE = """version = 1
 
 [defaults]
+adapter = "html"
 browser = \"auto\"
 timeout = 30.0
 # user_agent = \"Mozilla/5.0 htmlquill/0.1\"
@@ -31,6 +32,10 @@ auth_file = \"~/.config/htmlquill/auth.json\"
 markers = [
   \"Performing security verification\",
   \"verifies you are not a bot\",
+  \"You've been blocked by network security\",
+  \"blocked by network security\",
+  \"If you think you've been blocked by mistake, file a ticket\",
+  \"Please try to login with your Reddit account\",
 ]
 
 [sites.\"medium.com\"]
@@ -42,6 +47,12 @@ auth = \"medium\"
 browser = \"chromium\"
 timeout = 60.0
 auth = \"medium\"
+
+# [sites.\"reddit.com\"]
+# adapter = \"reddit_api\"
+# auth = \"reddit\"
+# timeout = 30.0
+# user_agent = \"linux:htmlquill:v0.2.0 (by /u/YOUR_REDDIT_USERNAME)\"
 """
 
 

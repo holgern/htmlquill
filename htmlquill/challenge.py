@@ -6,10 +6,16 @@ from collections.abc import Sequence
 
 DEFAULT_CHALLENGE_MARKERS: tuple[str, ...] = (
     "Performing security verification",
+    "Please wait for verification",
     "security service to protect against malicious bots",
     "verifies you are not a bot",
     "Checking if the site connection is secure",
     "Just a moment",
+    "js_challenge",
+    "You've been blocked by network security",
+    "blocked by network security",
+    "If you think you've been blocked by mistake, file a ticket",
+    "Please try to login with your Reddit account",
 )
 
 

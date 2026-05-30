@@ -23,13 +23,17 @@ _AUTH_TEMPLATE = (
     "{\n"
     '  "version": 1,\n'
     '  "profiles": {\n'
+    '    "reddit": {\n'
+    '      "kind": "bearer_token",\n'
+    '      "token_env": "REDDIT_BEARER_TOKEN"\n'
+    "    },\n"
     '    "medium": {\n'
     '      "kind": "browser_state",\n'
     '      "playwright_storage_state": "~/.config/htmlquill/auth/'
     'medium.storage-state.json",\n'
     '      "chromium_user_data_dir": "~/.config/htmlquill/chromium/medium"\n'
-    '    }\n'
-    '  }\n'
+    "    }\n"
+    "  }\n"
     "}\n"
 )
 

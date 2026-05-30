@@ -18,10 +18,13 @@ else:  # pragma: no cover on py311+
 
 BrowserMode = Literal["auto", "requests", "playwright", "chromium"]
 VALID_BROWSERS: tuple[BrowserMode, ...] = ("auto", "requests", "playwright", "chromium")
+AdapterMode = Literal["html", "reddit_api"]
+VALID_ADAPTERS: tuple[AdapterMode, ...] = ("html", "reddit_api")
 
 
 @dataclass(frozen=True)
 class DefaultsConfig:
+    adapter: AdapterMode = "html"
     browser: BrowserMode = "auto"
     timeout: float = 20.0
     user_agent: str | None = None
@@ -31,6 +34,7 @@ class DefaultsConfig:
 
 @dataclass(frozen=True)
 class SiteConfig:
+    adapter: AdapterMode | None = None
     browser: BrowserMode | None = None
     timeout: float | None = None
     user_agent: str | None = None
@@ -60,6 +64,7 @@ class CliOverrides:
 
 @dataclass(frozen=True)
 class ResolvedOptions:
+    adapter: AdapterMode
     browser: BrowserMode
     timeout: float
     headers: dict[str, str]
@@ -108,6 +113,19 @@ def _parse_browser(value: Any, *, field_name: str) -> BrowserMode:
     return lower
 
 
+def _parse_adapter(value: Any, *, field_name: str) -> AdapterMode:
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a string")
+    lower = value.strip().lower()
+    if lower not in VALID_ADAPTERS:
+        valid = ", ".join(VALID_ADAPTERS)
+        raise ValueError(
+            f"invalid adapter value {value!r} for {field_name}; "
+            f"expected one of: {valid}"
+        )
+    return lower
+
+
 def _to_float(value: Any, *, field_name: str) -> float:
     if isinstance(value, (int, float)):
         return float(value)
@@ -141,6 +159,10 @@ def _parse_site_config(name: str, raw: Any) -> SiteConfig:
     if not isinstance(raw, dict):
         raise ValueError(f"sites.{name} must be a table")
 
+    adapter = None
+    if "adapter" in raw and raw["adapter"] not in (None, ""):
+        adapter = _parse_adapter(raw["adapter"], field_name=f"sites.{name}.adapter")
+
     browser = None
     if "browser" in raw and raw["browser"] not in (None, ""):
         browser = _parse_browser(raw["browser"], field_name=f"sites.{name}.browser")
@@ -171,6 +193,7 @@ def _parse_site_config(name: str, raw: Any) -> SiteConfig:
         )
 
     return SiteConfig(
+        adapter=adapter,
         browser=browser,
         timeout=timeout,
         user_agent=user_agent,
@@ -179,6 +202,21 @@ def _parse_site_config(name: str, raw: Any) -> SiteConfig:
         fail_on_challenge=fail_on_challenge,
         fallback_on_challenge=fallback_on_challenge,
     )
+
+
+def _merge_markers(
+    base_markers: tuple[str, ...], override_markers: tuple[str, ...]
+) -> tuple[str, ...]:
+    seen: set[str] = set()
+    merged: list[str] = []
+
+    for marker in (*base_markers, *override_markers):
+        lower = marker.lower()
+        if lower in seen:
+            continue
+        seen.add(lower)
+        merged.append(marker)
+    return tuple(merged)
 
 
 def _env_flag(name: str) -> bool:
@@ -208,6 +246,12 @@ def load_config(path: Path | None = None) -> HtmlQuillConfig:
     if not isinstance(defaults_table, dict):
         raise ValueError("defaults must be a TOML table")
 
+    defaults_adapter: AdapterMode = "html"
+    if "adapter" in defaults_table and defaults_table["adapter"] not in (None, ""):
+        defaults_adapter = _parse_adapter(
+            defaults_table["adapter"], field_name="defaults.adapter"
+        )
+
     defaults_browser: BrowserMode = "auto"
     if "browser" in defaults_table and defaults_table["browser"] not in (None, ""):
         defaults_browser = _parse_browser(
@@ -220,6 +264,7 @@ def load_config(path: Path | None = None) -> HtmlQuillConfig:
     defaults_fallback_on_challenge = defaults_table.get("fallback_on_challenge", True)
 
     defaults = DefaultsConfig(
+        adapter=defaults_adapter,
         browser=defaults_browser,
         timeout=_to_float(defaults_timeout, field_name="defaults.timeout"),
         user_agent=_to_opt_str(defaults_user_agent, field_name="defaults.user_agent"),
@@ -303,6 +348,7 @@ def resolve_options(
     parsed = urlparse(url)
     site = _match_site(parsed.hostname, config.sites)
 
+    adapter: AdapterMode = "html"
     browser: BrowserMode = "auto"
     timeout: float = 20.0
     user_agent: str | None = None
@@ -312,16 +358,19 @@ def resolve_options(
     challenge_markers: tuple[str, ...] = DEFAULT_CHALLENGE_MARKERS
 
     # Global config defaults
+    adapter = config.defaults.adapter
     browser = config.defaults.browser
     timeout = config.defaults.timeout
     user_agent = config.defaults.user_agent
     fail_on_challenge = config.defaults.fail_on_challenge
     fallback_on_challenge = config.defaults.fallback_on_challenge
     if config.challenge_markers:
-        challenge_markers = config.challenge_markers
+        challenge_markers = _merge_markers(challenge_markers, config.challenge_markers)
 
     # Site-level overrides
     if site is not None:
+        if site.adapter is not None:
+            adapter = site.adapter
         if site.browser is not None:
             browser = site.browser
         if site.timeout is not None:
@@ -331,7 +380,9 @@ def resolve_options(
         if site.auth is not None:
             auth_profile = site.auth
         if site.challenge_markers:
-            challenge_markers = site.challenge_markers
+            challenge_markers = _merge_markers(
+                challenge_markers, site.challenge_markers
+            )
         if site.fail_on_challenge is not None:
             fail_on_challenge = site.fail_on_challenge
         if site.fallback_on_challenge is not None:
@@ -370,6 +421,7 @@ def resolve_options(
         headers["User-Agent"] = user_agent
 
     return ResolvedOptions(
+        adapter=adapter,
         browser=browser,
         timeout=timeout,
         headers=headers,

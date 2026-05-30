@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from htmlquill.auth import (
     AuthStore,
@@ -159,6 +160,7 @@ def resolved_context_to_dict(
         else None,
         "auth_path": str(context.auth_path) if context.auth_path is not None else None,
         "browser": context.options.browser,
+        "adapter": context.options.adapter,
         "timeout": context.options.timeout,
         "headers": merged_headers,
         "auth": redacted_auth_dict(context.auth),
@@ -193,6 +195,29 @@ def url_to_markdown(
     merged_headers = dict(context.options.headers)
     if headers:
         merged_headers.update(headers)
+
+    if context.options.adapter == "reddit_api":
+        from htmlquill.adapters.reddit import (
+            fetch_reddit_thread_json,
+            parse_reddit_url,
+            reddit_thread_json_to_markdown,
+        )
+
+        reddit_ref = parse_reddit_url(url)
+        if reddit_ref is not None:
+            payload = fetch_reddit_thread_json(
+                url,
+                options=context.options,
+                auth=context.auth,
+            )
+            return reddit_thread_json_to_markdown(payload, source_url=url)
+
+        host = (urlparse(url).hostname or "").lower()
+        if host.endswith("reddit.com"):
+            raise FetchError(
+                "reddit_api adapter currently supports Reddit comments URLs only "
+                "(.../r/<subreddit>/comments/<post_id>/...)"
+            )
 
     html = fetch_html(
         url,
