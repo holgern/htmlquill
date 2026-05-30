@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from collections.abc import Mapping
-from typing import Literal
+from collections.abc import Mapping, Sequence
+from typing import Any, Literal
 
 import requests
+from requests.cookies import RequestsCookieJar, create_cookie
+
+from htmlquill.challenge import (
+    DEFAULT_CHALLENGE_MARKERS,
+    ChallengePageError,
+    assert_not_challenge_page,
+)
 
 DEFAULT_USER_AGENT = "htmlquill/0.1 (+https://github.com/holgern/htmlquill)"
 
@@ -18,26 +25,14 @@ class FetchError(RuntimeError):
     """Raised when a URL cannot be fetched as HTML."""
 
 
-def _fetch_with_playwright(url: str, *, timeout: float = 20.0) -> str:
-    """Fetch a URL using Playwright headless Chromium.
+def _fetch_with_playwright(
+    url: str,
+    *,
+    timeout: float = 20.0,
+    storage_state: str | None = None,
+) -> str:
+    """Fetch a URL using Playwright headless Chromium."""
 
-    Parameters
-    ----------
-    url
-        The URL to fetch.
-    timeout
-        Navigation timeout in seconds.
-
-    Returns
-    -------
-    str
-        The HTML content after JavaScript execution.
-
-    Raises
-    ------
-    FetchError
-        If Playwright is not installed or the page cannot be loaded.
-    """
     try:
         from playwright.sync_api import (  # type: ignore[import-not-found]
             sync_playwright,
@@ -54,9 +49,14 @@ def _fetch_with_playwright(url: str, *, timeout: float = 20.0) -> str:
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
-            page = browser.new_page()
+            context_kwargs: dict[str, Any] = {}
+            if storage_state:
+                context_kwargs["storage_state"] = storage_state
+            context = browser.new_context(**context_kwargs)
+            page = context.new_page()
             page.goto(url, timeout=timeout * 1000, wait_until="networkidle")
             html = page.content()
+            context.close()
             browser.close()
     except Exception as exc:
         raise FetchError(f"browser fetch failed for {url!r}: {exc}") from exc
@@ -74,6 +74,7 @@ CHROMIUM_EXECUTABLES = (
 
 def _find_chromium() -> str | None:
     """Search PATH for a Chromium-like executable."""
+
     for name in CHROMIUM_EXECUTABLES:
         found = shutil.which(name)
         if found:
@@ -81,26 +82,14 @@ def _find_chromium() -> str | None:
     return None
 
 
-def _fetch_with_chromium(url: str, *, timeout: float = 20.0) -> str:
-    """Fetch a URL using a system Chromium executable in headless mode.
+def _fetch_with_chromium(
+    url: str,
+    *,
+    timeout: float = 20.0,
+    chromium_user_data_dir: str | None = None,
+) -> str:
+    """Fetch a URL using a system Chromium executable in headless mode."""
 
-    Parameters
-    ----------
-    url
-        The URL to fetch.
-    timeout
-        Navigation timeout in seconds.
-
-    Returns
-    -------
-    str
-        The HTML content after JavaScript execution.
-
-    Raises
-    ------
-    FetchError
-        If Chromium is not found, times out, or returns non-HTML.
-    """
     executable = _find_chromium()
     if executable is None:
         names = ", ".join(CHROMIUM_EXECUTABLES)
@@ -112,8 +101,10 @@ def _fetch_with_chromium(url: str, *, timeout: float = 20.0) -> str:
         "--disable-gpu",
         "--no-sandbox",
         "--dump-dom",
-        url,
     ]
+    if chromium_user_data_dir:
+        cmd.append(f"--user-data-dir={chromium_user_data_dir}")
+    cmd.append(url)
 
     try:
         completed = subprocess.run(
@@ -129,16 +120,16 @@ def _fetch_with_chromium(url: str, *, timeout: float = 20.0) -> str:
         raise FetchError(f"failed to run chromium for {url!r}: {exc}") from exc
 
     if completed.returncode != 0:
-        stderr = completed.stderr.strip()
-        # Fallback to legacy --headless for older Chromium builds.
         fallback_cmd = [
             executable,
             "--headless",
             "--disable-gpu",
             "--no-sandbox",
             "--dump-dom",
-            url,
         ]
+        if chromium_user_data_dir:
+            fallback_cmd.append(f"--user-data-dir={chromium_user_data_dir}")
+        fallback_cmd.append(url)
         try:
             completed = subprocess.run(
                 fallback_cmd,
@@ -163,9 +154,100 @@ def _fetch_with_chromium(url: str, *, timeout: float = 20.0) -> str:
 
 def _looks_like_html(text: str, content_type: str = "") -> bool:
     """Check if the response looks like HTML."""
+
     if "html" in content_type.lower():
         return True
     return text.lstrip()[:1] == "<"
+
+
+def _cookies_to_jar(cookies: Sequence[dict[str, object]]) -> RequestsCookieJar:
+    jar = RequestsCookieJar()
+    for cookie in cookies:
+        name = str(cookie.get("name", ""))
+        value = str(cookie.get("value", ""))
+        if not name:
+            continue
+        domain_raw = cookie.get("domain")
+        path_raw = cookie.get("path")
+        secure_raw = cookie.get("secure")
+        http_only_raw = cookie.get("httpOnly")
+
+        domain = str(domain_raw) if isinstance(domain_raw, str) else ""
+        path = str(path_raw) if isinstance(path_raw, str) else "/"
+        secure = bool(secure_raw)
+        rest: dict[str, Any] = {}
+        if bool(http_only_raw):
+            rest["HttpOnly"] = True
+
+        jar.set_cookie(
+            create_cookie(
+                name=name,
+                value=value,
+                domain=domain,
+                path=path,
+                secure=secure,
+                rest=rest,
+            )
+        )
+    return jar
+
+
+def _assert_not_challenge(
+    html: str,
+    *,
+    url: str,
+    challenge_markers: Sequence[str],
+    fail_on_challenge: bool,
+) -> None:
+    if not fail_on_challenge:
+        return
+    try:
+        assert_not_challenge_page(html, url=url, markers=challenge_markers)
+    except ChallengePageError as exc:
+        raise FetchError(str(exc)) from exc
+
+
+def _try_browser_fallbacks(
+    url: str,
+    *,
+    timeout: float,
+    challenge_markers: Sequence[str],
+    fail_on_challenge: bool,
+    playwright_storage_state: str | None,
+    chromium_user_data_dir: str | None,
+) -> str | None:
+    if _find_chromium() is not None:
+        try:
+            chromium_html = _fetch_with_chromium(
+                url,
+                timeout=timeout,
+                chromium_user_data_dir=chromium_user_data_dir,
+            )
+            _assert_not_challenge(
+                chromium_html,
+                url=url,
+                challenge_markers=challenge_markers,
+                fail_on_challenge=fail_on_challenge,
+            )
+            return chromium_html
+        except FetchError:
+            pass
+
+    try:
+        pw_html = _fetch_with_playwright(
+            url,
+            timeout=timeout,
+            storage_state=playwright_storage_state,
+        )
+        _assert_not_challenge(
+            pw_html,
+            url=url,
+            challenge_markers=challenge_markers,
+            fail_on_challenge=fail_on_challenge,
+        )
+        return pw_html
+    except FetchError:
+        return None
 
 
 def fetch_html(
@@ -174,81 +256,105 @@ def fetch_html(
     timeout: float = 20.0,
     headers: Mapping[str, str] | None = None,
     browser: BrowserMode = "auto",
+    cookies: list[dict[str, object]] | None = None,
+    playwright_storage_state: str | None = None,
+    chromium_user_data_dir: str | None = None,
+    challenge_markers: list[str] | None = None,
+    fallback_on_challenge: bool = True,
+    fail_on_challenge: bool = True,
 ) -> str:
-    """Fetch a URL and return the HTML content as a string.
+    """Fetch a URL and return the HTML content as a string."""
 
-    Parameters
-    ----------
-    url
-        The URL to fetch.
-    timeout
-        HTTP request timeout in seconds.
-    headers
-        Optional custom HTTP headers to merge with the defaults.
-    browser
-        Fetching mode:
-
-        - ``"requests"`` — plain HTTP via *requests* (the default backend).
-        - ``"playwright"`` — always use headless Chromium via Playwright.
-        - ``"chromium"`` — use a system-installed Chromium executable
-          via subprocess (no Playwright package required).
-        - ``"auto"`` — try *requests* first; on HTTP 403, fall back to
-          Playwright if available.
-
-    Returns
-    -------
-    str
-        The HTML content of the response.
-
-    Raises
-    ------
-    FetchError
-        If the request fails or the response does not look like HTML.
-    """
+    markers: Sequence[str] = challenge_markers or DEFAULT_CHALLENGE_MARKERS
 
     if browser == "chromium":
-        return _fetch_with_chromium(url, timeout=timeout)
-    if browser == "playwright":
-        html = _fetch_with_playwright(url, timeout=timeout)
-        if not _looks_like_html(html):
-            raise FetchError(f"browser result did not look like HTML: {url!r}")
-        return html
+        chromium_html = _fetch_with_chromium(
+            url,
+            timeout=timeout,
+            chromium_user_data_dir=chromium_user_data_dir,
+        )
+        _assert_not_challenge(
+            chromium_html,
+            url=url,
+            challenge_markers=markers,
+            fail_on_challenge=fail_on_challenge,
+        )
+        return chromium_html
 
-    # --- requests path ---
+    if browser == "playwright":
+        pw_html = _fetch_with_playwright(
+            url,
+            timeout=timeout,
+            storage_state=playwright_storage_state,
+        )
+        if not _looks_like_html(pw_html):
+            raise FetchError(f"browser result did not look like HTML: {url!r}")
+        _assert_not_challenge(
+            pw_html,
+            url=url,
+            challenge_markers=markers,
+            fail_on_challenge=fail_on_challenge,
+        )
+        return pw_html
+
     request_headers: dict[str, str] = {"User-Agent": DEFAULT_USER_AGENT}
     if headers:
         request_headers.update(headers)
 
+    request_cookies: RequestsCookieJar | None = None
+    if cookies:
+        request_cookies = _cookies_to_jar(cookies)
+
     try:
-        response = requests.get(url, headers=request_headers, timeout=timeout)
+        response = requests.get(
+            url,
+            headers=request_headers,
+            timeout=timeout,
+            cookies=request_cookies,
+        )
         response.raise_for_status()
     except requests.RequestException as exc:
-        # In auto mode, retry with Chromium then Playwright on 403
         if (
             browser == "auto"
             and isinstance(exc, requests.HTTPError)
             and exc.response is not None
             and exc.response.status_code == 403
         ):
-            # Try system Chromium first
-            if _find_chromium() is not None:
-                try:
-                    html = _fetch_with_chromium(url, timeout=timeout)
-                    return html
-                except FetchError:
-                    pass
-            # Then try Playwright
-            try:
-                html = _fetch_with_playwright(url, timeout=timeout)
-                if not _looks_like_html(html):
-                    raise FetchError(f"browser result did not look like HTML: {url!r}")  # noqa: TRY301
-                return html
-            except FetchError:
-                # All browser fallbacks failed — raise the original 403
-                pass
+            fallback_html = _try_browser_fallbacks(
+                url,
+                timeout=timeout,
+                challenge_markers=markers,
+                fail_on_challenge=fail_on_challenge,
+                playwright_storage_state=playwright_storage_state,
+                chromium_user_data_dir=chromium_user_data_dir,
+            )
+            if fallback_html is not None:
+                return fallback_html
         raise FetchError(f"failed to fetch {url!r}: {exc}") from exc
+
     content_type = response.headers.get("content-type", "")
     if not _looks_like_html(response.text, content_type):
         raise FetchError(f"URL did not look like HTML: {url!r}")
+
+    try:
+        _assert_not_challenge(
+            response.text,
+            url=url,
+            challenge_markers=markers,
+            fail_on_challenge=fail_on_challenge,
+        )
+    except FetchError:
+        if browser == "auto" and fallback_on_challenge:
+            fallback_html = _try_browser_fallbacks(
+                url,
+                timeout=timeout,
+                challenge_markers=markers,
+                fail_on_challenge=fail_on_challenge,
+                playwright_storage_state=playwright_storage_state,
+                chromium_user_data_dir=chromium_user_data_dir,
+            )
+            if fallback_html is not None:
+                return fallback_html
+        raise
 
     return response.text

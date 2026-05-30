@@ -28,21 +28,24 @@ class TestMediumFixtureQuality:
 
     def test_no_empty_links(self) -> None:
         import re
+
         text = _fixture_text()
         # Match []() that is NOT part of ![]() (image without alt)
-        assert not re.search(r'(?<!!)\[\]\(', text), "Fixture contains empty Markdown links []()"
+        assert not re.search(r"(?<!!)\[\]\(", text), (
+            "Fixture contains empty Markdown links []()"
+        )
 
     def test_no_interaction_placeholders(self) -> None:
         text = _fixture_text()
-        assert (
-            "Press enter or click to view image in full size" not in text
-        ), "Fixture contains Medium image accessibility placeholder text"
+        assert "Press enter or click to view image in full size" not in text, (
+            "Fixture contains Medium image accessibility placeholder text"
+        )
 
     def test_no_medium_signin_actions(self) -> None:
         text = _fixture_text()
-        assert (
-            "medium.com/m/signin" not in text
-        ), "Fixture contains Medium sign-in action URLs"
+        assert "medium.com/m/signin" not in text, (
+            "Fixture contains Medium sign-in action URLs"
+        )
 
 
 class TestEmptyLinkRendering:
@@ -108,10 +111,7 @@ class TestActionCleanup:
 
     def test_role_button_anchor_without_content_removed(self) -> None:
         html = (
-            "<article>"
-            '<a href="/action" role="button">  </a>'
-            "<p>Keep this</p>"
-            "</article>"
+            '<article><a href="/action" role="button">  </a><p>Keep this</p></article>'
         )
         md = html_to_markdown(html)
         assert "/action" not in md
@@ -161,7 +161,9 @@ class TestImageExtraction:
         assert "![Alt](https://e.test/large.png)" in md
 
     def test_image_srcset_picks_largest(self) -> None:
-        html = '<img src="/fallback.png" srcset="/sm.png 320w, /lg.png 1280w" alt="Alt">'
+        html = (
+            '<img src="/fallback.png" srcset="/sm.png 320w, /lg.png 1280w" alt="Alt">'
+        )
         md = html_to_markdown(html, base_url="https://e.test")
         assert "![Alt](https://e.test/lg.png)" in md
 

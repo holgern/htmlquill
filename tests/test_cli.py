@@ -1,7 +1,8 @@
-"""Tests for htmlquill.cli — CLI behavior with monkeypatched fetch."""
+"""Tests for htmlquill.cli."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,7 +11,6 @@ from htmlquill.cli import main
 
 class TestCLIStdout:
     def test_html_file_to_stdout(self, tmp_path: Path, capsys: object) -> None:
-
         html_file = tmp_path / "test.html"
         html_file.write_text(
             "<html><body><main><h1>Hello</h1><p>World</p></main></body></html>",
@@ -100,13 +100,97 @@ class TestCLIUrl:
         assert rc == 0
         assert mock_url.call_args[1]["browser"] == "chromium"
 
+    def test_print_config_reads_config_file(
+        self, tmp_path: Path, monkeypatch: object, capsys: object
+    ) -> None:
+        config_home = tmp_path / "xdg"
+        config_dir = config_home / "htmlquill"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.toml").write_text(
+            """
+version = 1
+[defaults]
+timeout = 41
+browser = "requests"
+""",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+        rc = main(["--print-config", "https://example.com"])
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["timeout"] == 41.0
+        assert payload["browser"] == "requests"
+
+    def test_no_config_ignores_toml(
+        self, tmp_path: Path, monkeypatch: object, capsys: object
+    ) -> None:
+        config_home = tmp_path / "xdg"
+        config_dir = config_home / "htmlquill"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.toml").write_text(
+            """
+version = 1
+[defaults]
+timeout = 99
+browser = "chromium"
+""",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+
+        rc = main(["--print-config", "--no-config", "https://example.com"])
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["timeout"] == 20.0
+        assert payload["browser"] == "auto"
+
+    def test_auth_file_and_profile_show_redacted(
+        self, tmp_path: Path, capsys: object
+    ) -> None:
+        auth_file = tmp_path / "auth.json"
+        auth_file.write_text(
+            """
+{
+  "version": 1,
+  "profiles": {
+    "medium": {
+      "kind": "cookies",
+      "cookies": [
+        {"name": "sid", "value": "secret", "domain": ".medium.com"}
+      ]
+    }
+  }
+}
+""",
+            encoding="utf-8",
+        )
+        auth_file.chmod(0o600)
+
+        rc = main(
+            [
+                "--print-config",
+                "--auth-file",
+                str(auth_file),
+                "--profile",
+                "medium",
+                "https://medium.com/x",
+            ]
+        )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["auth"]["profile"] == "medium"
+        assert payload["auth"]["cookies"] == "<redacted>"
+        assert payload["auth"]["cookies_count"] == 1
+
 
 class TestCLIError:
     def test_nonexistent_file(self) -> None:
         rc = main(["/nonexistent/path.html"])
         assert rc == 1
 
-    def test_url_fetch_error(self, tmp_path: Path) -> None:
+    def test_url_fetch_error(self) -> None:
         from htmlquill.fetch import FetchError
 
         with patch("htmlquill.cli.url_to_markdown") as mock_url:
