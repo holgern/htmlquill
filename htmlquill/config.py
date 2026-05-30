@@ -450,39 +450,3 @@ def config_enabled_for_run(no_config: bool) -> bool:
     return not _env_flag("HTMLQUILL_NO_CONFIG")
 
 
-def resolve_config_for_run(
-    *,
-    no_config: bool,
-    explicit_config_path: str | None,
-) -> HtmlQuillConfig:
-    """Resolve and load config for one CLI/library run."""
-
-    if not config_enabled_for_run(no_config):
-        return HtmlQuillConfig(source_path=None)
-
-    path: Path | None
-    if explicit_config_path:
-        path = Path(explicit_config_path)
-    else:
-        path = None
-    return load_config(path)
-
-
-def resolve_auth_file_from_config(
-    config: HtmlQuillConfig,
-    *,
-    config_dir: Path | None,
-) -> Path | None:
-    """Resolve auth file path defined in config, if present."""
-
-    return _maybe_expand_path(config.auth_file, base_dir=config_dir)
-
-
-def resolve_auth_vault_file_from_config(
-    config: HtmlQuillConfig,
-    *,
-    config_dir: Path | None,
-) -> Path | None:
-    """Resolve auth vault file path defined in config, if present."""
-
-    return _maybe_expand_path(config.auth_vault_file, base_dir=config_dir)

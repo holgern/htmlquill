@@ -10,8 +10,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from requests.cookies import RequestsCookieJar, create_cookie
-
 
 @dataclass(frozen=True)
 class CookieConfig:
@@ -223,26 +221,6 @@ def resolve_auth_profile(auth_store: AuthStore, name: str | None) -> AuthProfile
         raise ValueError(f"auth profile {name!r} not found; available: {available}")
     return auth_store.profiles[name]
 
-
-def cookies_to_requests_jar(cookies: tuple[CookieConfig, ...]) -> RequestsCookieJar:
-    """Convert cookie configs to ``requests`` cookie jar."""
-
-    jar = RequestsCookieJar()
-    for cookie in cookies:
-        rest: dict[str, Any] = {}
-        if cookie.http_only:
-            rest["HttpOnly"] = True
-        jar.set_cookie(
-            create_cookie(
-                name=cookie.name,
-                value=cookie.value,
-                domain=cookie.domain or "",
-                path=cookie.path or "/",
-                secure=cookie.secure,
-                rest=rest,
-            )
-        )
-    return jar
 
 
 def resolve_auth(

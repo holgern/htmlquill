@@ -15,10 +15,7 @@ from htmlquill.auth import (
     resolve_auth,
     resolve_auth_path,
 )
-from htmlquill.config import (
-    HtmlQuillConfig,
-    load_config,
-)
+from htmlquill.config import load_config
 from htmlquill.vault import (
     load_auth_vault,
     redacted_profile_dict,
@@ -72,9 +69,6 @@ def _resolved_auth_vault_path(
         config_dir=config_dir,
     )
 
-
-def _load_config_or_default(config: str | None) -> HtmlQuillConfig:
-    return load_config(Path(config).expanduser() if config else None)
 
 
 @app.command("path")

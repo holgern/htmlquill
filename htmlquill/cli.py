@@ -184,33 +184,7 @@ def analyse(
     )
 
 
-@app.command("analyze")
-def analyze(
-    source: str = typer.Argument(..., help="URL, HTML/Markdown file, or '-'"),
-    input_mode: str = typer.Option("auto", "--input", help="Input interpretation."),
-    timeout: float | None = typer.Option(None, "--timeout"),
-    user_agent: str | None = typer.Option(None, "--user-agent"),
-    browser: BrowserMode | None = typer.Option(None, "--browser"),
-    config: str | None = typer.Option(None, "--config"),
-    no_config: bool = typer.Option(False, "--no-config"),
-    auth_file: str | None = typer.Option(None, "--auth-file"),
-    no_auth: bool = typer.Option(False, "--no-auth"),
-    profile: str | None = typer.Option(None, "--profile"),
-    json_output: bool = typer.Option(False, "--json"),
-) -> None:
-    analyse_command(
-        source=source,
-        input_mode=input_mode,  # type: ignore[arg-type]
-        timeout=timeout,
-        user_agent=user_agent,
-        browser=browser,
-        config=config,
-        no_config=no_config,
-        auth_file=auth_file,
-        no_auth=no_auth,
-        profile=profile,
-        json_output=json_output,
-    )
+app.command("analyze")(analyse)
 
 
 @app.command("preview")
