@@ -72,6 +72,15 @@ class TestCleanup:
         md = html_to_markdown(html)
         assert "Hidden" not in md
 
+    def test_nested_styled_hidden_nodes_do_not_crash(self) -> None:
+        html = (
+            '<body><div style="display:none"><span style="color:red">'
+            "Hidden</span></div><main><p>Visible</p></main></body>"
+        )
+        md = html_to_markdown(html)
+        assert "Visible" in md
+        assert "Hidden" not in md
+
     def test_main_preferred_over_body(self) -> None:
         html = (
             "<body><nav>Nav</nav><main><p>Main content</p></main>"

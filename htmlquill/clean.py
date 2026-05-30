@@ -98,8 +98,11 @@ def parse_and_clean(html: str) -> BeautifulSoup | Tag:
         for node in soup.select(selector):
             node.decompose()
 
-    for node in soup.find_all(style=True):
-        style = str(node.get("style", "")).replace(" ", "").lower()
+    for node in list(soup.find_all(style=True)):
+        attrs = node.attrs
+        if attrs is None:
+            continue
+        style = str(attrs.get("style", "")).replace(" ", "").lower()
         if "display:none" in style or "visibility:hidden" in style:
             node.decompose()
 
