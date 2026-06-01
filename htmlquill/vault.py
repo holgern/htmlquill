@@ -256,7 +256,6 @@ def save_auth_vault(
     _secure_write(expanded, encrypted)
 
 
-
 def redacted_vault_dict(vault: AuthVault) -> dict[str, object]:
     """Return a redacted representation of the vault safe for logging/output."""
     profiles: dict[str, object] = {}

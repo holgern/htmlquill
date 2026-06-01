@@ -38,6 +38,14 @@ BLOCK_TAGS = {
     "ul",
 }
 
+_SIMPLE_TEX_REPLACEMENTS = {
+    r"\rightarrow": "→",
+    r"\to": "→",
+    r"\times": "×",
+    r"\sim": "∼",
+    r"\ast": "∗",
+}
+
 
 def collapse_ws(value: str) -> str:
     """Collapse runs of whitespace to a single space."""
@@ -70,7 +78,7 @@ class MarkdownRenderer:
             self.render_node(child)
             for child in node.children
             if isinstance(child, (Tag, NavigableString))
-        )  # noqa: E501
+        )
 
     def render_node(self, node: Tag | NavigableString | PageElement) -> str:
         """Dispatch rendering based on node type."""
@@ -80,7 +88,7 @@ class MarkdownRenderer:
             return ""
 
         name = node.name.lower()
-        handler = getattr(self, f"render_{name}", None)
+        handler = getattr(self, f"render_{name.replace('-', '_')}", None)
         if handler is not None:
             return handler(node)  # type: ignore[no-any-return]
 
@@ -150,6 +158,106 @@ class MarkdownRenderer:
             return self.render_children(node)
         return f"`{self.render_children(node).strip()}`"
 
+    def render_math(self, node: Tag) -> str:
+        tex = self._math_tex(node)
+        if tex:
+            return self._format_math(tex, display=self._is_display_math(node))
+
+        rendered = collapse_ws(self.render_children(node).strip())
+        if rendered:
+            return rendered
+        return collapse_ws(node.get_text(" ", strip=True))
+
+    def render_semantics(self, node: Tag) -> str:
+        # In MathML semantics trees, emit only the first visible child.
+        for child in node.children:
+            if isinstance(child, Tag):
+                if child.name in {"annotation", "annotation-xml"}:
+                    continue
+                return self.render_node(child)
+            if isinstance(child, NavigableString):
+                text = collapse_ws(str(child)).strip()
+                if text:
+                    return text
+        return ""
+
+    def render_annotation(self, node: Tag) -> str:
+        return ""
+
+    def render_annotation_xml(self, node: Tag) -> str:
+        return ""
+
+    def _math_tex(self, node: Tag) -> str:
+        # Prefer direct TeX metadata.
+        for attr in ("alttext", "alt", "data-tex", "tex"):
+            raw = str(node.get(attr) or "").strip()
+            if raw:
+                return self._clean_tex(raw)
+
+        for ann in node.find_all(["annotation", "annotation-xml"]):
+            encoding = str(ann.get("encoding") or "").lower()
+            if "tex" not in encoding and "latex" not in encoding:
+                continue
+            raw = ann.get_text("", strip=True)
+            if raw:
+                return self._clean_tex(raw)
+
+        return ""
+
+    def _clean_tex(self, tex: str) -> str:
+        tex = re.sub(r"\s+", " ", tex).strip()
+        tex = tex.replace("\\displaystyle", "").strip()
+
+        if tex.startswith(r"\(") and tex.endswith(r"\)"):
+            tex = tex[2:-2].strip()
+        if tex.startswith(r"\[") and tex.endswith(r"\]"):
+            tex = tex[2:-2].strip()
+        if tex.startswith("$$") and tex.endswith("$$"):
+            tex = tex[2:-2].strip()
+
+        tex = re.sub(r"italic_([A-Za-z])", r"\1", tex)
+
+        for cmd, replacement in _SIMPLE_TEX_REPLACEMENTS.items():
+            tex = tex.replace(cmd, replacement)
+
+        return tex.strip()
+
+    def _is_display_math(self, node: Tag) -> bool:
+        display = str(node.get("display") or "").strip().lower()
+        if display == "block":
+            return True
+
+        if self._has_display_math_class(node):
+            return True
+
+        for parent in node.parents:
+            if isinstance(parent, Tag) and self._has_display_math_class(parent):
+                return True
+        return False
+
+    def _has_display_math_class(self, node: Tag) -> bool:
+        classes = node.get("class", [])
+        if isinstance(classes, str):
+            class_list = classes.split()
+        else:
+            class_list = [str(item) for item in classes]
+        return any(
+            cls in {"ltx_Math_Display", "ltx_equation", "ltx_equationgroup"}
+            for cls in class_list
+        )
+
+    def _format_math(self, tex: str, *, display: bool) -> str:
+        if tex in {"→", "×", "∼", "∗"}:
+            return tex
+
+        if len(tex) == 1 and tex.isalpha():
+            return f"${tex}$"
+
+        if display:
+            return f"\n\n$$\n{tex}\n$$\n\n"
+
+        return f"${tex}$"
+
     # --- Links and images ---
 
     def render_a(self, node: Tag) -> str:
@@ -181,6 +289,49 @@ class MarkdownRenderer:
         if img is not None:
             return self.render_img(img)
         return ""
+
+    def render_figure(self, node: Tag) -> str:
+        caption = node.find("figcaption")
+        rendered_parts: list[str] = []
+
+        for child in node.children:
+            if isinstance(child, Tag) and child.name == "figcaption":
+                continue
+            part = self.render_node(child).strip()
+            if part:
+                rendered_parts.append(part)
+
+        if caption is not None:
+            caption_text = self.render_children(caption).strip()
+            if caption_text:
+                rendered_parts.append(f"**{caption_text}**")
+
+        if not rendered_parts:
+            return ""
+        return "\n\n" + "\n\n".join(rendered_parts) + "\n\n"
+
+    def render_figcaption(self, node: Tag) -> str:
+        text = self.render_children(node).strip()
+        if not text:
+            return ""
+        return f"\n\n**{text}**\n\n"
+
+    def render_svg(self, node: Tag) -> str:
+        title = node.find("title")
+        desc = node.find("desc")
+
+        labels: list[str] = []
+        for part in (title, desc):
+            if part is None:
+                continue
+            text = part.get_text(" ", strip=True)
+            if text:
+                labels.append(text)
+
+        label = " ".join(labels).strip()
+        if label:
+            return f"[SVG figure: {label}]"
+        return "[SVG figure omitted]"
 
     def _resolve_image_src(self, img: Tag) -> str:
         """Resolve the best image source URL from various attributes."""
@@ -227,8 +378,6 @@ class MarkdownRenderer:
                 m = re.match(r"(\d+)w", parts[1])
                 if m:
                     width = int(m.group(1))
-            else:
-                width = 0
             if width > best_width:
                 best_width = width
                 best_url = url
@@ -240,7 +389,14 @@ class MarkdownRenderer:
         items = []
         for child in node.children:
             if isinstance(child, Tag) and child.name == "li":
-                items.append(self._render_list_item(child, bullet="-", indent=0))
+                items.append(
+                    self._render_list_item(
+                        child,
+                        bullet="-",
+                        indent=0,
+                        ordered=False,
+                    )
+                )
             elif isinstance(child, Tag) and child.name in ("ul", "ol"):
                 items.append(self._render_nested_list(child, indent=0))
         content = "\n".join(items)
@@ -252,7 +408,12 @@ class MarkdownRenderer:
         for child in node.children:
             if isinstance(child, Tag) and child.name == "li":
                 items.append(
-                    self._render_list_item(child, bullet=f"{counter}.", indent=0)
+                    self._render_list_item(
+                        child,
+                        bullet=f"{counter}.",
+                        indent=0,
+                        ordered=True,
+                    )
                 )
                 counter += 1
             elif isinstance(child, Tag) and child.name in ("ul", "ol"):
@@ -262,9 +423,16 @@ class MarkdownRenderer:
 
     def render_li(self, node: Tag) -> str:
         # Standalone li (shouldn't normally happen, but be safe)
-        return self._render_list_item(node, bullet="-", indent=0)
+        return self._render_list_item(node, bullet="-", indent=0, ordered=False)
 
-    def _render_list_item(self, node: Tag, bullet: str, indent: int) -> str:
+    def _render_list_item(
+        self,
+        node: Tag,
+        bullet: str,
+        indent: int,
+        *,
+        ordered: bool = False,
+    ) -> str:
         prefix = "  " * indent + f"{bullet} "
         inline_content: list[str] = []
         sub_lists: list[str] = []
@@ -279,7 +447,10 @@ class MarkdownRenderer:
                 if text:
                     inline_content.append(text)
 
-        line = prefix + " ".join(inline_content)
+        content = " ".join(inline_content)
+        content = self._strip_list_marker_prefix(content, ordered=ordered)
+
+        line = prefix + content if content else prefix.rstrip()
         if sub_lists:
             return line + "\n" + "\n".join(sub_lists)
         return line
@@ -290,7 +461,12 @@ class MarkdownRenderer:
             for child in node.children:
                 if isinstance(child, Tag) and child.name == "li":
                     items.append(
-                        self._render_list_item(child, bullet="-", indent=indent)
+                        self._render_list_item(
+                            child,
+                            bullet="-",
+                            indent=indent,
+                            ordered=False,
+                        )
                     )
                 elif isinstance(child, Tag) and child.name in ("ul", "ol"):
                     items.append(self._render_nested_list(child, indent=indent))
@@ -300,13 +476,23 @@ class MarkdownRenderer:
                 if isinstance(child, Tag) and child.name == "li":
                     items.append(
                         self._render_list_item(
-                            child, bullet=f"{counter}.", indent=indent
+                            child,
+                            bullet=f"{counter}.",
+                            indent=indent,
+                            ordered=True,
                         )
                     )
                     counter += 1
                 elif isinstance(child, Tag) and child.name in ("ul", "ol"):
                     items.append(self._render_nested_list(child, indent=indent))
         return "\n".join(items)
+
+    def _strip_list_marker_prefix(self, text: str, *, ordered: bool) -> str:
+        cleaned = text.strip()
+        if ordered:
+            cleaned = re.sub(r"^\s*\d+[.)]\s+", "", cleaned)
+        cleaned = re.sub(r"^\s*[•‣◦▪▫]\s*", "", cleaned)
+        return cleaned.strip()
 
     # --- Code blocks ---
 
@@ -316,7 +502,7 @@ class MarkdownRenderer:
         if code_tag is not None:
             lang = ""
             # Try to detect language from class like "language-python"
-            classes: list[str] | str = code_tag.get("class", []) or []  # type: ignore[arg-type]
+            classes: list[str] | str = code_tag.get("class", []) or []
             if isinstance(classes, list):
                 for cls in classes:
                     if cls.startswith("language-"):
@@ -352,11 +538,15 @@ class MarkdownRenderer:
     # --- Tables ---
 
     def render_table(self, node: Tag) -> str:
+        if self._is_complex_table(node):
+            return self._render_complex_table_as_html(node)
+
         rows: list[list[str]] = []
-        for tag in node.find_all("tr"):
-            cells = tag.find_all(["th", "td"])
-            row = [self.render_children(cell).strip() for cell in cells]
-            rows.append(row)
+        for row_tag in self._iter_table_rows(node):
+            cells = row_tag.find_all(["th", "td"], recursive=False)
+            if not cells:
+                continue
+            rows.append([self._table_cell_text(cell) for cell in cells])
 
         if not rows:
             return ""
@@ -379,3 +569,36 @@ class MarkdownRenderer:
                 lines.append(sep)
 
         return f"\n\n{chr(10).join(lines)}\n\n"
+
+    def _iter_table_rows(self, node: Tag) -> list[Tag]:
+        rows: list[Tag] = []
+        for section_name in ("thead", "tbody", "tfoot"):
+            for section in node.find_all(section_name, recursive=False):
+                rows.extend(section.find_all("tr", recursive=False))
+        rows.extend(node.find_all("tr", recursive=False))
+        return rows
+
+    def _table_cell_text(self, cell: Tag) -> str:
+        text = self.render_children(cell).strip()
+        text = re.sub(r"\n\s*\n+", "<br><br>", text)
+        text = re.sub(r"\n+", "<br>", text)
+        text = text.replace("|", r"\|")
+        return text.strip()
+
+    def _is_complex_table(self, node: Tag) -> bool:
+        # Nested table descendants cannot be represented safely as markdown pipes.
+        if node.find("table") is not None:
+            return True
+
+        for cell in node.find_all(["th", "td"]):
+            if cell.find("table") is not None:
+                return True
+            if cell.has_attr("rowspan") or cell.has_attr("colspan"):
+                return True
+            if len(cell.get_text(" ", strip=True)) > 800:
+                return True
+
+        return False
+
+    def _render_complex_table_as_html(self, node: Tag) -> str:
+        return "\n\n" + str(node) + "\n\n"

@@ -9,7 +9,6 @@ DROP_SELECTORS = [
     "style",
     "noscript",
     "template",
-    "svg",
     "nav",
     "footer",
     "[hidden]",
@@ -57,6 +56,13 @@ def _drop_noise_text_nodes(root: BeautifulSoup | Tag) -> None:
                 text_node.extract()
 
 
+def _drop_non_figure_svgs(root: BeautifulSoup | Tag) -> None:
+    """Drop SVG outside figure context; keep figure-embedded scientific SVG."""
+    for svg in list(root.find_all("svg")):
+        if svg.find_parent("figure") is None:
+            svg.decompose()
+
+
 def _content_score(node: Tag) -> int:
     """Score a candidate content root by content density."""
     score = 0
@@ -78,7 +84,7 @@ def parse_and_clean(html: str) -> BeautifulSoup | Tag:
     """Parse HTML and remove unwanted elements.
 
     Strips scripts, styles, navigation, footers, hidden elements, and other
-    non-content nodes.  Selects the best content container using a
+    non-content nodes. Selects the best content container using a
     content-scoring heuristic that prefers ``<article>`` over ``<main>``,
     then ``<body>``, or the whole document.
 
@@ -98,6 +104,8 @@ def parse_and_clean(html: str) -> BeautifulSoup | Tag:
         for node in soup.select(selector):
             node.decompose()
 
+    _drop_non_figure_svgs(soup)
+
     for node in list(soup.find_all(style=True)):
         attrs = node.attrs
         if attrs is None:
@@ -109,6 +117,7 @@ def parse_and_clean(html: str) -> BeautifulSoup | Tag:
     # Drop action controls and noise text
     _drop_action_controls(soup)
     _drop_noise_text_nodes(soup)
+
     # Gather content candidates and score them
     candidates: list[Tag] = []
     for tag in soup.find_all("article"):

@@ -222,7 +222,6 @@ def resolve_auth_profile(auth_store: AuthStore, name: str | None) -> AuthProfile
     return auth_store.profiles[name]
 
 
-
 def resolve_auth(
     auth_store: AuthStore | None,
     *,

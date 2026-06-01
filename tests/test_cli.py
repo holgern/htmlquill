@@ -407,8 +407,9 @@ adapter = "reddit_api"
         )
 
         assert result.exit_code != 0
-        assert "invalid browser value" in result.output or "invalid browser value" in str(
-            result.exception
+        assert (
+            "invalid browser value" in result.output
+            or "invalid browser value" in str(result.exception)
         )
 
     def test_auth_help_does_not_list_login_logout(self) -> None:

@@ -70,7 +70,6 @@ def _resolved_auth_vault_path(
     )
 
 
-
 @app.command("path")
 def auth_path(
     auth_file: str | None = typer.Option(None, "--auth-file"),

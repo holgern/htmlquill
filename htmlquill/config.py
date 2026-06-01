@@ -169,7 +169,9 @@ def _to_marker_tuple(value: Any, *, field_name: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value if item.strip())
 
 
-def _parse_site_config(name: str, raw: Any, *, warnings: list[str] | None = None) -> SiteConfig:
+def _parse_site_config(
+    name: str, raw: Any, *, warnings: list[str] | None = None
+) -> SiteConfig:
     if not isinstance(raw, dict):
         raise ValueError(f"sites.{name} must be a table")
 
@@ -465,5 +467,3 @@ def config_enabled_for_run(no_config: bool) -> bool:
     if no_config:
         return False
     return not _env_flag("HTMLQUILL_NO_CONFIG")
-
-
