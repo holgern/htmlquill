@@ -204,6 +204,7 @@ def run_doctor(  # noqa: C901
         if os.name != "nt":
             import stat
 
+            assert vault_path is not None
             try:
                 mode = stat.S_IMODE(vault_path.stat().st_mode)
                 if mode & 0o077:
@@ -235,6 +236,7 @@ def run_doctor(  # noqa: C901
         # Check encryption
         if vaultconfig_available:
             try:
+                assert vault_path is not None
                 raw_bytes = vault_path.read_bytes()
                 from vaultconfig import crypt  # type: ignore[import-not-found]
 

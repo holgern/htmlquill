@@ -14,7 +14,7 @@ from htmlquill.challenge import DEFAULT_CHALLENGE_MARKERS
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover on py311+
-    import tomli as tomllib  # type: ignore[import-not-found]
+    import tomli as tomllib
 
 BrowserMode = Literal["auto", "requests", "playwright", "chromium"]
 VALID_BROWSERS: tuple[BrowserMode, ...] = ("auto", "requests", "playwright", "chromium")
@@ -127,8 +127,9 @@ def _parse_adapter(
     if lower == "reddit_api":
         if warnings is not None:
             warnings.append(
-                f"{field_name}: adapter='reddit_api' was removed; using adapter='html'. "
-                "Remove this setting from config.toml."
+                f"{field_name}: adapter='reddit_api' was removed; "
+                "using adapter='html'. "
+                "Remove this setting from config.toml.",
             )
         return "html"
     if lower not in VALID_ADAPTERS:

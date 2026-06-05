@@ -35,7 +35,7 @@ def _fetch_with_playwright(
     """Fetch a URL using Playwright headless Chromium."""
 
     try:
-        from playwright.sync_api import (  # type: ignore[import-not-found]
+        from playwright.sync_api import (
             sync_playwright,
         )
     except ImportError as exc:
@@ -381,4 +381,4 @@ def fetch_html(
                 return fallback_html
         raise
 
-    return response.text
+    return str(response.text)

@@ -286,7 +286,7 @@ class MarkdownRenderer:
     def render_picture(self, node: Tag) -> str:
         # Render the img child inside a picture element
         img = node.find("img")
-        if img is not None:
+        if isinstance(img, Tag):
             return self.render_img(img)
         return ""
 
@@ -499,7 +499,7 @@ class MarkdownRenderer:
     def render_pre(self, node: Tag) -> str:
         # Check if there's a <code> child
         code_tag = node.find("code")
-        if code_tag is not None:
+        if isinstance(code_tag, Tag):
             lang = ""
             # Try to detect language from class like "language-python"
             classes: list[str] | str = code_tag.get("class", []) or []
@@ -533,7 +533,7 @@ class MarkdownRenderer:
             )
 
         # Default: use get_text with newline separator to handle nested spans
-        return node.get_text("")
+        return str(node.get_text(""))
 
     # --- Tables ---
 

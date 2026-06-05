@@ -66,6 +66,8 @@ dev = [
     "ruff",
     "twine",
     "types-PyYAML",
+    "types-beautifulsoup4",
+    "types-requests",
     "vaultconfig>=0.1.0",
 ]
 rich = [
