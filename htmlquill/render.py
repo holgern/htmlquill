@@ -38,6 +38,8 @@ BLOCK_TAGS = {
     "ul",
 }
 
+_TEXT_ESCAPE_RE = re.compile(r"([\\`*_#])")
+
 _SIMPLE_TEX_REPLACEMENTS = {
     r"\rightarrow": "→",
     r"\to": "→",
@@ -60,11 +62,6 @@ def escape_text(value: str) -> str:
     return _TEXT_ESCAPE_RE.sub(r"\\\1", value)
 
 
-def escape_link_label(value: str) -> str:
-    """Escape characters in Markdown link labels [label]."""
-    return value.replace("\\", "\\\\").replace("]", "\\]")
-
-
 def escape_image_alt(value: str) -> str:
     """Escape characters in Markdown image alt text ![alt]."""
     return value.replace("\\", "\\\\").replace("]", "\\]")
@@ -77,11 +74,6 @@ def escape_url(value: str) -> str:
     """
     # Encode spaces and unmatched parens that break Markdown link syntax
     return value.replace(" ", "%20").replace("(", "%28").replace(")", "%29")
-
-
-def escape_table_cell(value: str) -> str:
-    """Escape pipe characters and newlines in table cells."""
-    return value.replace("|", "\\|").replace("\n", " ")
 
 
 def normalize_markdown(markdown: str) -> str:

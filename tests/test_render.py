@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from htmlquill.render import MarkdownRenderer, normalize_markdown
+from htmlquill.render import MarkdownRenderer, escape_text, normalize_markdown
 
 
 def _render(html_fragment: str, *, base_url: str | None = None) -> str:
@@ -266,3 +266,9 @@ class TestEscaping:
         md = _render("<pre><code>*bold* and _italic_</code></pre>")
         # Inside pre/code, special chars should NOT be escaped
         assert "*bold* and _italic_" in md
+
+
+def test_escape_text_core_markdown_chars() -> None:
+    assert escape_text(r"Use #tag and `code` with *x* _y_") == (
+        r"Use \#tag and \`code\` with \*x\* \_y\_"
+    )

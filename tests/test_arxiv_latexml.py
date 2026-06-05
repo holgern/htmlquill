@@ -39,7 +39,11 @@ def test_inline_variable_math_prefers_alttext() -> None:
 
 
 def test_latexml_unordered_bullet_label_is_not_duplicated() -> None:
-    html = '<article><ul><li><span class="ltx_tag">•</span> Entity text</li></ul></article>'
+    html = (
+        "<article>"
+        '<ul><li><span class="ltx_tag">•</span> Entity text</li></ul>'
+        "</article>"
+    )
     md = html_to_markdown(html)
     assert "- •" not in md
     assert md == "- Entity text\n"
@@ -67,7 +71,9 @@ def test_table_cell_newlines_become_br() -> None:
 
 
 def test_table_pipes_are_escaped() -> None:
-    html = "<article><table><tr><th>A</th></tr><tr><td>x | y</td></tr></table></article>"
+    html = (
+        "<article><table><tr><th>A</th></tr><tr><td>x | y</td></tr></table></article>"
+    )
     md = html_to_markdown(html)
     assert "x \\| y" in md
 
@@ -83,7 +89,7 @@ def test_complex_table_falls_back_to_html() -> None:
     """
     md = html_to_markdown(html)
     assert "<table>" in md
-    assert "colspan=\"2\"" in md
+    assert 'colspan="2"' in md
 
 
 def test_figure_caption_and_svg_are_preserved() -> None:
