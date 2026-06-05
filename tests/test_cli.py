@@ -528,3 +528,9 @@ class TestCLIError:
             mock_url.side_effect = FetchError("failed to fetch 'https://bad.url': 404")
             rc = main(["https://bad.url"])
         assert rc == 1
+
+
+    def test_auth_vault_command_removed(self) -> None:
+        result = runner.invoke(app, ["auth", "vault", "path"])
+        assert result.exit_code != 0
+

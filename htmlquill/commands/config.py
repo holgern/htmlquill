@@ -28,8 +28,6 @@ fallback_on_challenge = true
 
 [paths]
 auth_file = "~/.config/htmlquill/auth.json"
-# auth_vault_file is optional and only needed if you use encrypted generic auth data.
-# auth_vault_file = "~/.config/htmlquill/auth.vault"
 
 [challenge]
 markers = [

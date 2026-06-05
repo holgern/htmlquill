@@ -15,12 +15,6 @@ pip install "htmlquill[browser]"
 playwright install chromium
 ```
 
-Encrypted auth vault support for generic secret storage:
-
-```bash
-pip install "htmlquill[secure]"
-```
-
 ## CLI usage
 
 ```bash
@@ -48,10 +42,6 @@ htmlquill config show https://example.com
 # Initialize config and inspect paths
 htmlquill config init
 htmlquill config path
-htmlquill auth vault path
-
-# Inspect redacted vault metadata
-htmlquill auth vault show
 
 # Run diagnostics
 htmlquill doctor
@@ -70,7 +60,6 @@ htmlquill preview example.md
 - `htmlquill convert SOURCE [options]`
 - `htmlquill config path|show|init|validate`
 - `htmlquill auth path|show|init`
-- `htmlquill auth vault path|show`
 - `htmlquill doctor [--url URL] [--fetch] [--json] [--strict]`
 - `htmlquill analyse SOURCE` (alias: `htmlquill analyze SOURCE`)
 - `htmlquill preview SOURCE`
@@ -144,54 +133,8 @@ auth = "medium"
 
 ## Authentication
 
-HtmlQuill supports two auth backends:
-
-1. **Encrypted auth vault** (`auth.vault`) for encrypted generic secret storage.
-2. **JSON auth file** (`auth.json`) for browser-state profiles.
-
-### Encrypted auth vault
-
-The encrypted vault stores secrets in `~/.config/htmlquill/auth.vault` by default and is encrypted with VaultConfig.
-
-Install support:
-
-```bash
-pip install "htmlquill[secure]"
-```
-
-Encrypted vault commands are available for inspecting encrypted auth data:
-
-```bash
-htmlquill auth vault path
-htmlquill auth vault show
-```
-
-Vault path resolution order:
-
-1. `--auth-vault-file PATH`
-2. `HTMLQUILL_VAULT_FILE`
-3. `[paths].auth_vault_file` from config
-4. `$XDG_CONFIG_HOME/htmlquill/auth.vault` or `~/.config/htmlquill/auth.vault`
-
-Vault password resolution order:
-
-1. `HTMLQUILL_VAULT_PASSWORD`
-2. `HTMLQUILL_VAULT_PASSWORD_COMMAND`
-3. `VAULTCONFIG_PASSWORD`
-4. `VAULTCONFIG_PASSWORD_COMMAND`
-5. interactive password prompt
-
-For interactive use, let HtmlQuill ask for the vault password. For password-manager integration, prefer a command such as:
-
-```bash
-export HTMLQUILL_VAULT_PASSWORD_COMMAND='pass show htmlquill/vault'
-```
-
-- Do not commit `auth.vault`. On POSIX systems the file should be mode `0600`.
-- Prefer a password command over a plain environment variable to avoid leaving the password in shell history.
-- `auth vault show` redacts secrets by default.
-
-### Legacy auth.json
+HtmlQuill supports browser-state auth profiles through `auth.json`.
+Use this when a site works in an already-authenticated browser session and you want HtmlQuill to reuse that state.
 
 Auth file resolution order:
 
@@ -215,10 +158,12 @@ Example `auth.json`:
 }
 ```
 
-Use `auth.json` for browser state profiles.
+Security notes:
 
-- Do not commit auth files, storage-state files, or browser profile dirs.
+- Do not commit auth files, storage-state files, or browser profile directories.
 - Recommended permissions: `chmod 600 ~/.config/htmlquill/auth.json`.
+- Recommended browser profile directory permissions: `chmod 700 ~/.config/htmlquill/chromium/medium`.
+
 
 ## Reddit
 

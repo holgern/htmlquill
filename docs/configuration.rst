@@ -47,7 +47,7 @@ Sections
     ``playwright``, or ``chromium``.
 
 ``paths``
-    Override the default auth file and auth vault file locations.
+    Override the default auth file location.
 
 ``challenge``
     ``markers`` is a list of substrings used to detect network-security

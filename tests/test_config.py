@@ -245,3 +245,22 @@ def test_reddit_url_returns_html_adapter_by_default(tmp_path: Path) -> None:
         CliOverrides(),
     )
     assert opts.adapter == "html"
+
+
+def test_legacy_auth_vault_file_is_ignored_with_warning(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+version = 1
+[paths]
+auth_file = "auth.json"
+auth_vault_file = "auth.vault"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    cfg = load_config(config_path)
+
+    assert cfg.auth_file == "auth.json"
+    assert any("auth_vault_file" in warning for warning in cfg.warnings)
+

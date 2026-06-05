@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
-import os
 import platform
 import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
 from htmlquill.auth import load_auth, resolve_auth_path
 from htmlquill.config import (
@@ -150,136 +148,6 @@ def run_doctor(  # noqa: C901
         )
     )
 
-    # --- Secure auth vault checks ---
-
-    vaultconfig_available = _import_exists("vaultconfig.crypt")
-
-    vault_path: Path | None = None
-    config_dir_vault = cfg.source_path.parent if cfg.source_path is not None else None
-    if cfg.auth_vault_file:
-        from htmlquill.config import _maybe_expand_path
-
-        vault_path = _maybe_expand_path(cfg.auth_vault_file, base_dir=config_dir_vault)
-    else:
-        from htmlquill.vault import default_auth_vault_path
-
-        vault_path = default_auth_vault_path(config_dir_vault)
-
-    # Only report on vaultconfig availability if a vault is in use.
-    vault_in_use = vault_path and vault_path.exists()
-    if vault_in_use:
-        checks.append(
-            DoctorCheck(
-                "secure_auth_dependency",
-                "ok" if vaultconfig_available else "warn",
-                "vaultconfig available"
-                if vaultconfig_available
-                else (
-                    "secure auth requires VaultConfig; "
-                    'install with: pip install "htmlquill[secure]"'
-                ),
-            )
-        )
-    else:
-        checks.append(
-            DoctorCheck(
-                "secure_auth_dependency",
-                "info" if not vaultconfig_available else "ok",
-                "vaultconfig available"
-                if vaultconfig_available
-                else "secure auth (optional) requires VaultConfig",
-            )
-        )
-
-    if vault_in_use:
-        checks.append(
-            DoctorCheck(
-                "secure_auth_vault_exists",
-                "ok",
-                str(vault_path),
-            )
-        )
-
-        # Check permissions
-        if os.name != "nt":
-            import stat
-
-            assert vault_path is not None
-            try:
-                mode = stat.S_IMODE(vault_path.stat().st_mode)
-                if mode & 0o077:
-                    checks.append(
-                        DoctorCheck(
-                            "secure_auth_permissions",
-                            "warn",
-                            f"auth vault {vault_path} is group/world accessible "
-                            f"(mode {oct(mode)}); recommended mode is 0o600",
-                        )
-                    )
-                else:
-                    checks.append(
-                        DoctorCheck(
-                            "secure_auth_permissions",
-                            "ok",
-                            "auth vault file permissions are 0600",
-                        )
-                    )
-            except OSError as exc:
-                checks.append(
-                    DoctorCheck(
-                        "secure_auth_permissions",
-                        "error",
-                        str(exc),
-                    )
-                )
-
-        # Check encryption
-        if vaultconfig_available:
-            try:
-                assert vault_path is not None
-                raw_bytes = vault_path.read_bytes()
-                from vaultconfig import crypt  # type: ignore[import-not-found]
-
-                if crypt.is_encrypted(raw_bytes):
-                    checks.append(
-                        DoctorCheck(
-                            "secure_auth_vault_encrypted",
-                            "ok",
-                            "auth vault appears encrypted",
-                        )
-                    )
-                else:
-                    checks.append(
-                        DoctorCheck(
-                            "secure_auth_vault_encrypted",
-                            "error",
-                            "auth vault does not appear to be VaultConfig-encrypted",
-                        )
-                    )
-            except Exception as exc:
-                checks.append(
-                    DoctorCheck(
-                        "secure_auth_vault_encrypted",
-                        "error",
-                        str(exc),
-                    )
-                )
-        else:
-            checks.append(
-                DoctorCheck(
-                    "secure_auth_vault_encrypted",
-                    "info",
-                    "vaultconfig not available; cannot check encryption status",
-                )
-            )
-    else:
-        checks.append(
-            DoctorCheck(
-                "secure_auth_vault_exists",
-                "info" if not profile else "warn",
-                f"{vault_path} {'not found' if vault_path else 'not configured'}",
-            )
-        )
 
     if url:
         headers = {"User-Agent": user_agent} if user_agent else None

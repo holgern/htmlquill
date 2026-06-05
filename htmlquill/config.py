@@ -49,7 +49,6 @@ class HtmlQuillConfig:
     version: int = 1
     defaults: DefaultsConfig = DefaultsConfig()
     auth_file: str | None = None
-    auth_vault_file: str | None = None
     challenge_markers: tuple[str, ...] = ()
     sites: dict[str, SiteConfig] = field(default_factory=dict)
     source_path: Path | None = None
@@ -304,9 +303,11 @@ def load_config(path: Path | None = None) -> HtmlQuillConfig:
     if not isinstance(paths_table, dict):
         raise ValueError("paths must be a TOML table")
     auth_file = _to_opt_str(paths_table.get("auth_file"), field_name="paths.auth_file")
-    auth_vault_file = _to_opt_str(
-        paths_table.get("auth_vault_file"), field_name="paths.auth_vault_file"
-    )
+    if "auth_vault_file" in paths_table:
+        config_warnings.append(
+            "paths.auth_vault_file is ignored; encrypted auth vault support "
+            "was removed. Use paths.auth_file instead."
+        )
     challenge_table = payload.get("challenge", {})
     if not isinstance(challenge_table, dict):
         raise ValueError("challenge must be a TOML table")
@@ -330,7 +331,6 @@ def load_config(path: Path | None = None) -> HtmlQuillConfig:
         version=version,
         defaults=defaults,
         auth_file=auth_file,
-        auth_vault_file=auth_vault_file,
         challenge_markers=challenge_markers,
         sites=sites,
         source_path=resolved_path,
