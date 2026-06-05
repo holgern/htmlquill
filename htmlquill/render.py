@@ -339,7 +339,7 @@ class MarkdownRenderer:
             if part:
                 rendered_parts.append(part)
 
-        if caption is not None:
+        if isinstance(caption, Tag):
             caption_text = self.render_children(caption).strip()
             if caption_text:
                 rendered_parts.append(f"**{caption_text}**")

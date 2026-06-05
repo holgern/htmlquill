@@ -1,3 +1,8 @@
+[![PyPI - Version](https://img.shields.io/pypi/v/htmlquill)](https://pypi.org/project/htmlquill/)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/htmlquill)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/htmlquill)
+[![codecov](https://codecov.io/gh/holgern/htmlquill/graph/badge.svg?token=qJDpB7ej1T)](https://codecov.io/gh/holgern/htmlquill)
+
 # HtmlQuill
 
 Convert HTML or a URL to Markdown.
