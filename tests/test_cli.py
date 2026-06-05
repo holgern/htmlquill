@@ -299,7 +299,9 @@ class TestTyperCommands:
         result = runner.invoke(app, ["config", "path", "--json"])
         assert result.exit_code == 0
         payload = json.loads(result.output)
-        assert payload["config_path"].replace("\\", "/").endswith("htmlquill/config.toml")
+        assert (
+            payload["config_path"].replace("\\", "/").endswith("htmlquill/config.toml")
+        )
 
     def test_config_show_matches_old_print_config(
         self, monkeypatch: object, tmp_path: Path, capsys: object
