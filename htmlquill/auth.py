@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from htmlquill.paths import default_auth_path, env_flag
+
 
 @dataclass(frozen=True)
 class CookieConfig:
@@ -45,22 +47,9 @@ class ResolvedAuth:
     chromium_user_data_dir: str | None = None
 
 
-def _env_flag(name: str) -> bool:
-    value = os.environ.get(name, "")
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def default_auth_path(config_dir: Path | None = None) -> Path:
-    """Return default auth file path."""
-
-    base_dir = config_dir
-    if base_dir is None:
-        xdg = os.environ.get("XDG_CONFIG_HOME")
-        if xdg:
-            base_dir = Path(xdg).expanduser() / "htmlquill"
-        else:
-            base_dir = Path("~/.config/htmlquill").expanduser()
-    return base_dir / "auth.json"
+# Use shared helpers from htmlquill.paths
+_env_flag = env_flag
+default_auth_path = default_auth_path
 
 
 def auth_enabled_for_run(no_auth: bool) -> bool:

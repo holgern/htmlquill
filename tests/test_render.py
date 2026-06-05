@@ -206,3 +206,63 @@ class TestNormalize:
         result = normalize_markdown("hello  \nworld  ")
         first_line = result.split("\n")[0]
         assert first_line == "hello"
+
+
+# --- Escaping ---
+
+
+class TestEscaping:
+    def test_text_with_special_chars(self) -> None:
+        md = _render("<p>Text with *asterisks* and _underscores_</p>")
+        # Special chars should be escaped
+        assert "\\*" in md
+        assert "\\_" in md
+
+    def test_text_with_hash(self) -> None:
+        md = _render("<p>Use #hashtag</p>")
+        assert "\\#" in md
+
+    def test_text_with_backtick(self) -> None:
+        md = _render("<p>Use `code` here</p>")
+        # Backticks in text are escaped
+        assert "\\`" in md
+
+    def test_link_with_parens_in_url(self) -> None:
+        md = _render(
+            '<p><a href="https://example.com/page_(1)">Link</a></p>',
+            base_url="https://example.com",
+        )
+        # Parentheses in URL should be encoded
+        assert "%28" in md or "%29" in md
+
+    def test_link_label_with_bracket(self) -> None:
+        md = _render(
+            '<p><a href="https://example.com">Label [1]</a></p>',
+            base_url="https://example.com",
+        )
+        # Bracket in label is NOT escaped to preserve nested image syntax
+        assert "[Label [1]](https://example.com)" in md
+
+    def test_image_alt_with_bracket(self) -> None:
+        md = _render(
+            '<img src="/img.png" alt="Image [1]">',
+            base_url="https://example.com",
+        )
+        # Bracket in alt text should be escaped
+        assert "\\]" in md
+
+    def test_table_cell_with_pipe(self) -> None:
+        html = "<table><tr><th>A | B</th></tr><tr><td>cell | val</td></tr></table>"
+        md = _render(html)
+        # Pipes in table cells should be escaped
+        assert "\\|" in md
+
+    def test_code_not_over_escaped(self) -> None:
+        md = _render("<p>Use <code>*not bold*</code> here</p>")
+        # Inside code, asterisks should NOT be escaped
+        assert "`*not bold*`" in md
+
+    def test_pre_block_not_over_escaped(self) -> None:
+        md = _render("<pre><code>*bold* and _italic_</code></pre>")
+        # Inside pre/code, special chars should NOT be escaped
+        assert "*bold* and _italic_" in md

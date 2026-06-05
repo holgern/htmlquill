@@ -52,9 +52,7 @@ adapter = "html"
     assert not any(name.startswith("reddit:") for name in names)
 
 
-
 def test_run_doctor_has_no_secure_auth_vault_checks(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     checks = run_doctor()
     assert not any(check.name.startswith("secure_auth_") for check in checks)
-

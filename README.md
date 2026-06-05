@@ -164,7 +164,6 @@ Security notes:
 - Recommended permissions: `chmod 600 ~/.config/htmlquill/auth.json`.
 - Recommended browser profile directory permissions: `chmod 700 ~/.config/htmlquill/chromium/medium`.
 
-
 ## Reddit
 
 HtmlQuill no longer ships a Reddit API/OAuth adapter. Reddit URLs are processed through the normal HTML fetch path, the same as other URLs. If Reddit returns a network-security or login interstitial, use a browser-based fetch profile, retry later, or export/save the page manually. `htmlquill auth login reddit` is intentionally not available.

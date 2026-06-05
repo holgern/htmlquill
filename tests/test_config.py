@@ -263,4 +263,3 @@ auth_vault_file = "auth.vault"
 
     assert cfg.auth_file == "auth.json"
     assert any("auth_vault_file" in warning for warning in cfg.warnings)
-

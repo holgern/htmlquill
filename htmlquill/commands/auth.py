@@ -136,5 +136,3 @@ def auth_init(
     if os.name != "nt":
         path.chmod(0o600)
     typer.echo(f"wrote auth template to {path}")
-
-

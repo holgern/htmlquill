@@ -52,6 +52,38 @@ def collapse_ws(value: str) -> str:
     return re.sub(r"\s+", " ", value)
 
 
+def escape_text(value: str) -> str:
+    """Escape Markdown-special characters in paragraph text.
+
+    Does not escape inside code/pre blocks (callers must skip those).
+    """
+    return _TEXT_ESCAPE_RE.sub(r"\\\1", value)
+
+
+def escape_link_label(value: str) -> str:
+    """Escape characters in Markdown link labels [label]."""
+    return value.replace("\\", "\\\\").replace("]", "\\]")
+
+
+def escape_image_alt(value: str) -> str:
+    """Escape characters in Markdown image alt text ![alt]."""
+    return value.replace("\\", "\\\\").replace("]", "\\]")
+
+
+def escape_url(value: str) -> str:
+    """Escape a URL for use in Markdown links/images.
+
+    Encodes spaces and parentheses that would break Markdown syntax.
+    """
+    # Encode spaces and unmatched parens that break Markdown link syntax
+    return value.replace(" ", "%20").replace("(", "%28").replace(")", "%29")
+
+
+def escape_table_cell(value: str) -> str:
+    """Escape pipe characters and newlines in table cells."""
+    return value.replace("|", "\\|").replace("\n", " ")
+
+
 def normalize_markdown(markdown: str) -> str:
     """Normalize Markdown output: strip trailing whitespace,
     collapse blank lines, ensure trailing newline."""
@@ -67,6 +99,7 @@ class MarkdownRenderer:
 
     def __init__(self, *, base_url: str | None = None) -> None:
         self.base_url = base_url
+        self._in_code = False
 
     def render(self, node: Tag | NavigableString) -> str:
         """Render a DOM node tree to a Markdown string."""
@@ -83,7 +116,10 @@ class MarkdownRenderer:
     def render_node(self, node: Tag | NavigableString | PageElement) -> str:
         """Dispatch rendering based on node type."""
         if isinstance(node, NavigableString):
-            return collapse_ws(str(node))
+            text = collapse_ws(str(node))
+            if self._in_code:
+                return text
+            return escape_text(text)
         if not isinstance(node, Tag):
             return ""
 
@@ -156,7 +192,12 @@ class MarkdownRenderer:
         # If inside <pre>, just return the text
         if node.parent and node.parent.name == "pre":
             return self.render_children(node)
-        return f"`{self.render_children(node).strip()}`"
+        self._in_code = True
+        try:
+            content = self.render_children(node).strip()
+        finally:
+            self._in_code = False
+        return f"`{content}`"
 
     def render_math(self, node: Tag) -> str:
         tex = self._math_tex(node)
@@ -270,7 +311,10 @@ class MarkdownRenderer:
         if href.lower().startswith("mailto:"):
             return text
         absolute_href = urljoin(self.base_url or "", href)
-        return f"[{text}]({absolute_href})"
+        safe_href = escape_url(absolute_href)
+        # Note: do not escape ] in label here because it may contain
+        # rendered image/link syntax from children.
+        return f"[{text}]({safe_href})"
 
     def render_img(self, node: Tag) -> str:
         alt = str(node.get("alt") or "").strip()
@@ -281,7 +325,9 @@ class MarkdownRenderer:
         if not src:
             return ""
         absolute_src = urljoin(self.base_url or "", src)
-        return f"![{alt}]({absolute_src})"
+        safe_src = escape_url(absolute_src)
+        safe_alt = escape_image_alt(alt)
+        return f"![{safe_alt}]({safe_src})"
 
     def render_picture(self, node: Tag) -> str:
         # Render the img child inside a picture element
@@ -508,10 +554,18 @@ class MarkdownRenderer:
                     if cls.startswith("language-"):
                         lang = cls[len("language-") :]
                         break
-            code_text = self._pre_text(code_tag)
+            self._in_code = True
+            try:
+                code_text = self._pre_text(code_tag)
+            finally:
+                self._in_code = False
         else:
             lang = ""
-            code_text = self._pre_text(node)
+            self._in_code = True
+            try:
+                code_text = self._pre_text(node)
+            finally:
+                self._in_code = False
         return f"\n\n```{lang}\n{code_text}\n```\n\n"
 
     def _pre_text(self, node: Tag) -> str:

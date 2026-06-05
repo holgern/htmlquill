@@ -47,6 +47,7 @@ def _fetch_with_playwright(
         )
         raise FetchError(msg) from exc
 
+    browser = None
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
@@ -54,13 +55,20 @@ def _fetch_with_playwright(
             if storage_state:
                 context_kwargs["storage_state"] = storage_state
             context = browser.new_context(**context_kwargs)
-            page = context.new_page()
-            page.goto(url, timeout=timeout * 1000, wait_until="networkidle")
-            html = page.content()
-            context.close()
-            browser.close()
+            try:
+                page = context.new_page()
+                page.goto(url, timeout=timeout * 1000, wait_until="networkidle")
+                html = page.content()
+            finally:
+                context.close()
     except Exception as exc:
         raise FetchError(f"browser fetch failed for {url!r}: {exc}") from exc
+    finally:
+        if browser is not None:
+            try:
+                browser.close()
+            except Exception:
+                pass
 
     return str(html)
 
@@ -83,6 +91,48 @@ def _find_chromium() -> str | None:
     return None
 
 
+def _build_chromium_command(
+    executable: str,
+    headless_flag: str,
+    url: str,
+    chromium_user_data_dir: str | None = None,
+) -> list[str]:
+    """Build a Chromium command line for headless DOM dump."""
+    cmd = [
+        executable,
+        headless_flag,
+        "--disable-gpu",
+        "--no-sandbox",
+        "--dump-dom",
+    ]
+    if chromium_user_data_dir:
+        cmd.append(f"--user-data-dir={chromium_user_data_dir}")
+    cmd.append(url)
+    return cmd
+
+
+def _run_chromium_command(
+    cmd: list[str],
+    *,
+    timeout: float,
+    url: str,
+    label: str,
+) -> subprocess.CompletedProcess[str]:
+    """Run a Chromium subprocess and return the result."""
+    try:
+        return subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise FetchError(f"chromium {label} timed out for {url!r}") from exc
+    except OSError as exc:
+        raise FetchError(f"failed to run chromium {label} for {url!r}: {exc}") from exc
+
+
 def _fetch_with_chromium(
     url: str,
     *,
@@ -96,53 +146,18 @@ def _fetch_with_chromium(
         names = ", ".join(CHROMIUM_EXECUTABLES)
         raise FetchError(f"Chromium executable not found on PATH; tried: {names}")
 
-    cmd = [
-        executable,
-        "--headless=new",
-        "--disable-gpu",
-        "--no-sandbox",
-        "--dump-dom",
-    ]
-    if chromium_user_data_dir:
-        cmd.append(f"--user-data-dir={chromium_user_data_dir}")
-    cmd.append(url)
-
-    try:
-        completed = subprocess.run(
-            cmd,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise FetchError(f"chromium fetch timed out for {url!r}") from exc
-    except OSError as exc:
-        raise FetchError(f"failed to run chromium for {url!r}: {exc}") from exc
+    cmd = _build_chromium_command(
+        executable, "--headless=new", url, chromium_user_data_dir
+    )
+    completed = _run_chromium_command(cmd, timeout=timeout, url=url, label="fetch")
 
     if completed.returncode != 0:
-        fallback_cmd = [
-            executable,
-            "--headless",
-            "--disable-gpu",
-            "--no-sandbox",
-            "--dump-dom",
-        ]
-        if chromium_user_data_dir:
-            fallback_cmd.append(f"--user-data-dir={chromium_user_data_dir}")
-        fallback_cmd.append(url)
-        try:
-            completed = subprocess.run(
-                fallback_cmd,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise FetchError(f"chromium fallback timed out for {url!r}") from exc
-        except OSError as exc:
-            raise FetchError(f"chromium fallback failed for {url!r}: {exc}") from exc
+        fallback_cmd = _build_chromium_command(
+            executable, "--headless", url, chromium_user_data_dir
+        )
+        completed = _run_chromium_command(
+            fallback_cmd, timeout=timeout, url=url, label="fallback"
+        )
         if completed.returncode != 0:
             stderr = completed.stderr.strip()
             raise FetchError(f"chromium fetch failed for {url!r}: {stderr}")
@@ -239,7 +254,15 @@ def _try_browser_fallbacks(
     fail_on_challenge: bool,
     playwright_storage_state: str | None,
     chromium_user_data_dir: str | None,
+    original_error: FetchError | None = None,
 ) -> str | None:
+    """Try browser fallbacks and return HTML or None.
+
+    If *original_error* is provided and all fallbacks fail, re-raise it
+    instead of the aggregated error so callers see the original cause.
+    """
+    errors: list[str] = []
+
     if _find_chromium() is not None:
         try:
             chromium_html = _fetch_with_chromium(
@@ -254,8 +277,8 @@ def _try_browser_fallbacks(
                 fail_on_challenge=fail_on_challenge,
             )
             return chromium_html
-        except FetchError:
-            pass
+        except FetchError as exc:
+            errors.append(f"chromium: {exc}")
 
     try:
         pw_html = _fetch_with_playwright(
@@ -270,8 +293,16 @@ def _try_browser_fallbacks(
             fail_on_challenge=fail_on_challenge,
         )
         return pw_html
-    except FetchError:
-        return None
+    except FetchError as exc:
+        errors.append(f"playwright: {exc}")
+
+    if original_error is not None:
+        raise original_error
+    if errors:
+        raise FetchError(
+            f"all browser fallbacks failed for {url!r}: " + "; ".join(errors)
+        )
+    return None
 
 
 def fetch_html(
@@ -343,6 +374,7 @@ def fetch_html(
             and isinstance(exc, requests.HTTPError)
             and exc.response is not None
             and exc.response.status_code == 403
+            and fallback_on_challenge
         ):
             fallback_html = _try_browser_fallbacks(
                 url,
@@ -367,7 +399,7 @@ def fetch_html(
             challenge_markers=markers,
             fail_on_challenge=fail_on_challenge,
         )
-    except FetchError:
+    except FetchError as exc:
         if browser == "auto" and fallback_on_challenge:
             fallback_html = _try_browser_fallbacks(
                 url,
@@ -376,6 +408,7 @@ def fetch_html(
                 fail_on_challenge=fail_on_challenge,
                 playwright_storage_state=playwright_storage_state,
                 chromium_user_data_dir=chromium_user_data_dir,
+                original_error=exc,
             )
             if fallback_html is not None:
                 return fallback_html

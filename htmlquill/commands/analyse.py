@@ -11,6 +11,11 @@ import click
 import typer
 
 from htmlquill.analyse import MarkdownStats, count_markdown_stats
+from htmlquill.commands.helpers import (
+    auth_input_from_cli,
+    config_input_from_cli,
+    headers_from_user_agent,
+)
 from htmlquill.config import BrowserMode
 from htmlquill.core import html_to_markdown, url_to_markdown
 from htmlquill.urls import is_url
@@ -46,9 +51,9 @@ def load_markdown_for_analysis(
             raise click.ClickException(
                 "--input markdown is not supported for URL sources"
             )
-        headers = {"User-Agent": user_agent} if user_agent else None
-        config_input: bool | str = False if no_config else (config or True)
-        auth_input: bool | str = False if no_auth else (auth_file or True)
+        headers = headers_from_user_agent(user_agent)
+        config_input = config_input_from_cli(config, no_config)
+        auth_input = auth_input_from_cli(auth_file, no_auth)
         return url_to_markdown(
             source,
             timeout=timeout,

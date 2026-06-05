@@ -10,6 +10,7 @@ from typing import Any, Literal
 from urllib.parse import urlparse
 
 from htmlquill.challenge import DEFAULT_CHALLENGE_MARKERS
+from htmlquill.paths import default_config_path, env_flag
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -75,19 +76,8 @@ class ResolvedOptions:
     fallback_on_challenge: bool
 
 
-def default_config_dir() -> Path:
-    """Return the default XDG-compatible config directory for htmlquill."""
-
-    xdg = os.environ.get("XDG_CONFIG_HOME")
-    if xdg:
-        return Path(xdg).expanduser() / "htmlquill"
-    return Path("~/.config/htmlquill").expanduser()
-
-
-def default_config_path() -> Path:
-    """Return the default configuration file path."""
-
-    return default_config_dir() / "config.toml"
+# Use shared helpers from htmlquill.paths
+# default_config_dir, default_config_path, and env_flag are imported above
 
 
 def resolve_config_path(path: Path | str | None = None) -> Path:
@@ -237,9 +227,7 @@ def _merge_markers(
     return tuple(merged)
 
 
-def _env_flag(name: str) -> bool:
-    value = os.environ.get(name, "")
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+# _env_flag is imported from htmlquill.paths
 
 
 def load_config(path: Path | None = None) -> HtmlQuillConfig:
@@ -467,4 +455,4 @@ def config_enabled_for_run(no_config: bool) -> bool:
 
     if no_config:
         return False
-    return not _env_flag("HTMLQUILL_NO_CONFIG")
+    return not env_flag("HTMLQUILL_NO_CONFIG")

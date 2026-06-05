@@ -64,6 +64,8 @@ dev = [
     "pytest",
     "pytest-xdist",
     "ruff",
+    "sphinx",
+    "sphinx-rtd-theme",
     "twine",
     "types-PyYAML",
     "types-beautifulsoup4",
@@ -74,6 +76,10 @@ rich = [
 ]
 browser = [
     "playwright>=1.40",
+]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
 ]
 
 [tool.setuptools_scm]

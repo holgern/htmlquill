@@ -529,8 +529,6 @@ class TestCLIError:
             rc = main(["https://bad.url"])
         assert rc == 1
 
-
     def test_auth_vault_command_removed(self) -> None:
         result = runner.invoke(app, ["auth", "vault", "path"])
         assert result.exit_code != 0
-
