@@ -130,11 +130,18 @@ markers = [
   "If you think you've been blocked by mistake, file a ticket",
 ]
 
-[sites."medium.com"]
-browser = "chromium"
-timeout = 60.0
-auth = "medium"
+# Browser-backed authentication is opt-in. Add a site rule only when needed:
+#
+# [sites."example.com"]
+# browser = "chromium"
+# timeout = 60.0
+# auth = "example"
 ```
+
+Do not force browser mode for sites that return complete article HTML to normal
+HTTP clients. For example, Medium articles usually work with the default
+`auto` mode; forcing Chromium can be slower and can time out on pages that keep
+background connections open.
 
 ## Authentication
 

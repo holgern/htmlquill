@@ -34,10 +34,12 @@ Example ``config.toml``
      "If you think you've been blocked by mistake, file a ticket",
    ]
 
-   [sites."medium.com"]
-   browser = "chromium"
-   timeout = 60.0
-   auth = "medium"
+   # Browser-backed authentication is opt-in. Add a site rule only when needed:
+   #
+   # [sites."example.com"]
+   # browser = "chromium"
+   # timeout = 60.0
+   # auth = "example"
 
 Sections
 --------
@@ -58,7 +60,9 @@ Sections
 ``sites``
     Per-site configuration keyed by hostname. Hostname keys must be quoted
     when they contain dots (``[sites."medium.com"]``). Sites inherit from
-    ``defaults`` and override specific keys.
+    ``defaults`` and override specific keys. Prefer the default ``auto`` mode
+    when normal HTTP fetching returns complete content. Forced browser mode can
+    time out on pages that keep background connections open.
 
 Site matching
 ~~~~~~~~~~~~~

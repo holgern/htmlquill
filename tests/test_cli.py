@@ -303,6 +303,13 @@ class TestTyperCommands:
             payload["config_path"].replace("\\", "/").endswith("htmlquill/config.toml")
         )
 
+    def test_config_init_does_not_force_medium_through_browser(self) -> None:
+        result = runner.invoke(app, ["config", "init", "--print"])
+
+        assert result.exit_code == 0
+        assert 'browser = "auto"' in result.output
+        assert '[sites."medium.com"]' not in result.output
+
     def test_config_show_matches_old_print_config(
         self, monkeypatch: object, tmp_path: Path, capsys: object
     ) -> None:

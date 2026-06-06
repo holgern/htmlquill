@@ -38,15 +38,13 @@ markers = [
   "If you think you've been blocked by mistake, file a ticket",
 ]
 
-[sites."medium.com"]
-browser = "chromium"
-timeout = 60.0
-auth = "medium"
-
-[sites."alain-airom.medium.com"]
-browser = "chromium"
-timeout = 60.0
-auth = "medium"
+# Browser-backed authentication is opt-in. Add a site rule only when plain
+# HTTP fetching is insufficient:
+#
+# [sites."example.com"]
+# browser = "chromium"
+# timeout = 60.0
+# auth = "example"
 """
 
 
